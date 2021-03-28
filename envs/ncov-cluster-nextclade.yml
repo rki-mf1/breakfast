@@ -1,0 +1,13 @@
+name: ncov-cluster-hdbscan
+channels:
+  - conda-forge
+  - bioconda
+  - r
+  - defaults
+dependencies:
+  - hdbscan
+  - networkx
+  - numpy
+  - pandas
+  - scikit-learn
+  - scipy
