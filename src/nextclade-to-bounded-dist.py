@@ -41,7 +41,7 @@ def main():
 
     meta = pd.read_table(args.nextclade, dtype={"substitutions": str})
 
-    # Convert list of substitutions into a sparse matrix
+    print("Convert list of substitutions into a sparse matrix")
     subs = meta["substitutions"]
     indptr = [0]
     indices = []
@@ -64,7 +64,7 @@ def main():
 
     sub_mat = csr_matrix((data, indices, indptr), dtype=int)
 
-    # Use sparse matrix to calculate pairwise distances, bounded by max_dist
+    print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
     def reduce_func(D_chunk, start):
         neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
         return neigh
@@ -97,10 +97,11 @@ def main():
             yield last, current
             last = current
 
+    print("Create graph and recover connected components")
     G = to_graph(neigh)
     clusters = connected_components(G)
 
-    # Save clusters
+    print("Save clusters")
     meta["cluster_id"] = np.nan
     cluster_id = 1
     for clust in clusters:
