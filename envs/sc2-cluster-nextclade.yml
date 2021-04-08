@@ -1,4 +1,4 @@
-name: ncov-cluster-hdbscan
+name: sc2-cluster-hdbscan
 channels:
   - conda-forge
   - bioconda
