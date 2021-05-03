@@ -2,7 +2,6 @@
 
 import argparse
 import collections
-import hdbscan
 from itertools import chain
 from scipy.sparse import csr_matrix
 
@@ -38,6 +37,10 @@ def main():
 
     if not os.path.exists(args.outdir):
         os.makedirs(args.outdir)
+
+    #with open(os.path.join(args.outdir, "args.txt"), 'w') as f:
+    #    for argname, arg in args.__dict__:
+    #        f.write(argname, ': ', arg, '\n')
 
     meta = pd.read_table(args.nextclade, dtype={"substitutions": str})
 
@@ -113,6 +116,14 @@ def main():
 
     meta.to_csv(
         os.path.join(args.outdir, "meta-with-clusters.tsv"), sep="\t", index=False
+    )
+
+    meta[["seqName", "clade", "totalMutations", "aaSubstitutions", "cluster_id"]].to_csv(
+        os.path.join(args.outdir, "meta-with-clusters-simpler.tsv"), sep="\t", index=False
+    )
+
+    meta[["seqName", "cluster_id"]].to_csv(
+        os.path.join(args.outdir, "clusters.tsv"), sep="\t", index=False
     )
 
     print(meta.shape)

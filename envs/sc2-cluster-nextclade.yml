@@ -1,11 +1,10 @@
-name: sc2-cluster-hdbscan
+name: sc2-cluster-nextclade
 channels:
   - conda-forge
   - bioconda
   - r
   - defaults
 dependencies:
-  - hdbscan
   - networkx
   - numpy
   - pandas
