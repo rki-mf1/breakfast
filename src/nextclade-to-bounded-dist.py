@@ -12,6 +12,7 @@ import pandas as pd
 import numpy as np
 import math
 import os
+import datetime
 
 import networkx
 from networkx.algorithms.components.connected import connected_components
@@ -22,15 +23,19 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("--nextclade", help="Nextclade metadata (tsv format)")
+    parser.add_argument("--clust-col", help="Nextclade metadata column to cluster (default = 'substitutions')")
     parser.add_argument("--outdir", help="Output directory for all output files")
     parser.add_argument("--max-dist", type=int, help="Maximum parwise distance")
     parser.add_argument("--min-cluster-size", type=int, help="Minimum cluster size")
+    parser.add_argument("--jobs", type=int, help="Number of jobs to run in parallel")
 
     parser.set_defaults(
-        nextclade="../input/global-clades-nextstrain.tsv",
-        outdir="../output",
+        nextclade="/scratch_local/sc2/global/2021-05-02/clades/clades/clades-nextstrain.tsv",
+        clust_col="substitutions",
+        outdir="../output/latest",
         max_dist=1,
-        min_cluster_size=5,
+        min_cluster_size=4,
+        jobs=20,
     )
 
     args = parser.parse_args()
@@ -38,14 +43,16 @@ def main():
     if not os.path.exists(args.outdir):
         os.makedirs(args.outdir)
 
-    #with open(os.path.join(args.outdir, "args.txt"), 'w') as f:
-    #    for argname, arg in args.__dict__:
-    #        f.write(argname, ': ', arg, '\n')
+    print("Clustering sequences")
+    print(f"  max dist = {args.max_dist}")
+    print(f"  minimum cluster size = {args.min_cluster_size}")
+    print(f"  nextclade metadata file = {args.nextclade}")
+    print(f"  nextclade metadata column = {args.clust_col}")
 
-    meta = pd.read_table(args.nextclade, dtype={"substitutions": str})
+    meta = pd.read_table(args.nextclade, dtype={args.clust_col: str})
 
     print("Convert list of substitutions into a sparse matrix")
-    subs = meta["substitutions"]
+    subs = meta[args.clust_col]
     indptr = [0]
     indices = []
     data = []
@@ -106,19 +113,17 @@ def main():
 
     print("Save clusters")
     meta["cluster_id"] = np.nan
-    cluster_id = 1
+    cluster_id = 0
     for clust in clusters:
         if len(clust) >= args.min_cluster_size:
-            print("Found a cluster:" + str(cluster_id))
-            print(clust)
-            meta.iloc[list(clust), meta.columns.get_loc("cluster_id")] = cluster_id
             cluster_id += 1
+            meta.iloc[list(clust), meta.columns.get_loc("cluster_id")] = cluster_id
 
     meta.to_csv(
         os.path.join(args.outdir, "meta-with-clusters.tsv"), sep="\t", index=False
     )
 
-    meta[["seqName", "clade", "totalMutations", "aaSubstitutions", "cluster_id"]].to_csv(
+    meta[["seqName", "clade", "totalMutations", "substitutions", "aaSubstitutions", "cluster_id"]].to_csv(
         os.path.join(args.outdir, "meta-with-clusters-simpler.tsv"), sep="\t", index=False
     )
 
@@ -126,7 +131,7 @@ def main():
         os.path.join(args.outdir, "clusters.tsv"), sep="\t", index=False
     )
 
-    print(meta.shape)
+    print(f"Number of clusters found: {cluster_id}")
 
 
 # Main body
