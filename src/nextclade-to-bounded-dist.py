@@ -30,7 +30,7 @@ def main():
     parser.add_argument("--jobs", type=int, help="Number of jobs to run in parallel")
 
     parser.set_defaults(
-        nextclade="/scratch_local/sc2/global/2021-05-02/clades/clades/clades-nextstrain.tsv",
+        nextclade="/scratch_slow/sc2/global/2021-05-02/clades/clades-nextstrain.tsv",
         clust_col="substitutions",
         outdir="../output/latest",
         max_dist=1,
@@ -50,6 +50,7 @@ def main():
     print(f"  nextclade metadata column = {args.clust_col}")
 
     meta = pd.read_table(args.nextclade, dtype={args.clust_col: str})
+    print(f"Number of sequences: {meta.shape[0]}")
 
     print("Convert list of substitutions into a sparse matrix")
     subs = meta[args.clust_col]
