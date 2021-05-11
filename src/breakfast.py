@@ -74,6 +74,8 @@ def main():
         indptr.append(len(indices))
 
     sub_mat = csr_matrix((data, indices, indptr), dtype=int)
+    num_nz = sub_mat.getnnz()
+    print(f"Number of non-zero matrix entries: {num_nz} ({100 * num_nz/(sub_mat.shape[0] * sub_mat.shape[1])}%)")
 
     print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
     def reduce_func(D_chunk, start):
@@ -83,6 +85,7 @@ def main():
     gen = pairwise_distances_chunked(
         sub_mat, reduce_func=reduce_func, metric="manhattan"
     )
+        #sub_mat, reduce_func=reduce_func, metric="manhattan", n_jobs=args.jobs, working_memory=2048
 
     neigh = list(chain.from_iterable(gen))
 

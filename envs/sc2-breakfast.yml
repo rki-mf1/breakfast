@@ -1,4 +1,4 @@
-name: sc2-cluster-nextclade
+name: sc2-breakfast
 channels:
   - conda-forge
   - bioconda
