@@ -116,7 +116,7 @@ def main():
     clusters = connected_components(G)
 
     print("Save clusters")
-    meta["cluster_id"] = np.nan
+    meta["cluster_id"] = pd.NA
     cluster_id = 0
     for clust in clusters:
         if len(clust) >= args.min_cluster_size:

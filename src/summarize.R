@@ -23,14 +23,14 @@ x <- read.delim(args$input)
 cluster_dates <- x %>%
   mutate(SAMPLING_DATE2 = ymd(SAMPLING_DATE)) %>%
   group_by(cluster_id) %>%
-  summarize(min = min(SAMPLING_DATE2), max = max(SAMPLING_DATE2), date_range = time_length(interval(min(SAMPLING_DATE2), max(SAMPLING_DATE2)), "day"), n = n(), frac_top_plz = max(table(PRIMARY_DIAGNOSTIC_LAB_PLZ)) / n()) %>%
-  mutate(score = (n + 1)/ (date_range + 1)) %>%
-  arrange(desc(score))
+  summarize(sampling_date_min = min(SAMPLING_DATE2), sampling_date_max = max(SAMPLING_DATE2), sampling_date_range_days = time_length(interval(min(SAMPLING_DATE2), max(SAMPLING_DATE2)), "day"), cluster_size = n(), frac_top_plz = max(table(PRIMARY_DIAGNOSTIC_LAB_PLZ), na.rm = TRUE) / n()) %>%
+  mutate(cluster_score = (cluster_size + 1)/ (sampling_date_range_days + 1)) %>%
+  arrange(desc(cluster_score))
 
 print(cluster_dates)
 
 # Recent only
-recent_cluster_dates <- cluster_dates %>% filter(max >= today() - weeks(2))
+recent_cluster_dates <- cluster_dates %>% filter(sampling_date_max >= today() - weeks(2))
 
 write_tsv(cluster_dates, file.path(args$outdir, "cluster-summary.tsv"))
-write_tsv(recent_cluster_dates, file.path(args$outdir, "cluster-summary-last-week.tsv"))
+write_tsv(recent_cluster_dates, file.path(args$outdir, "cluster-summary-last-two-weeks.tsv"))
