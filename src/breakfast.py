@@ -22,20 +22,19 @@ def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument("--nextclade", help="Nextclade metadata (tsv format)")
-    parser.add_argument("--clust-col", help="Nextclade metadata column to cluster (default = 'substitutions')")
-    parser.add_argument("--outdir", help="Output directory for all output files")
-    parser.add_argument("--max-dist", type=int, help="Maximum parwise distance")
-    parser.add_argument("--min-cluster-size", type=int, help="Minimum cluster size")
-    parser.add_argument("--jobs", type=int, help="Number of jobs to run in parallel")
+    parser.add_argument("--input-file", help="Input file")
+    parser.add_argument("--id-col", help="Column with the sequence identifier")
+    parser.add_argument("--clust-col", help="Metadata column to cluster (default = 'dna_profile')")
+    parser.add_argument("--sep", help="Clustering column separator")
+    parser.add_argument("--outdir", default="output", help="Output directory for all output files")
+    parser.add_argument("--max-dist", type=int, default=1, help="Maximum parwise distance")
+    parser.add_argument("--min-cluster-size", type=int, default=2, help="Minimum cluster size")
 
     parser.set_defaults(
-        nextclade="/scratch_slow/sc2/global/2021-05-02/clades/clades-nextstrain.tsv",
-        clust_col="substitutions",
-        outdir="../output/latest",
-        max_dist=1,
-        min_cluster_size=4,
-        jobs=20,
+        input_file="../input/covsonar/rki-2021-05-19-minimal.tsv.gz",
+        id_col="accession",
+        clust_col="dna_profile",
+        sep=" ",
     )
 
     args = parser.parse_args()
@@ -44,12 +43,14 @@ def main():
         os.makedirs(args.outdir)
 
     print("Clustering sequences")
+    print(f"  Input file = {args.input_file}")
+    print(f"  ID column = {args.id_col}")
+    print(f"  clustering feature column = {args.clust_col}")
+    print(f"  clustering feature column separator = {args.sep}")
     print(f"  max dist = {args.max_dist}")
     print(f"  minimum cluster size = {args.min_cluster_size}")
-    print(f"  nextclade metadata file = {args.nextclade}")
-    print(f"  nextclade metadata column = {args.clust_col}")
 
-    meta = pd.read_table(args.nextclade, dtype={args.clust_col: str})
+    meta = pd.read_table(args.input_file, usecols=[args.id_col, args.clust_col], dtype={args.id_col: str, args.clust_col: str})
     print(f"Number of sequences: {meta.shape[0]}")
 
     print("Convert list of substitutions into a sparse matrix")
@@ -62,8 +63,8 @@ def main():
         if isinstance(subt, float):
             d = []
         else:
-            if subt.find(",") != -1:
-                d = subt.split(",")
+            if subt.find(args.sep) != -1:
+                d = subt.split(args.sep)
             else:
                 d = [subt]
 
@@ -85,7 +86,6 @@ def main():
     gen = pairwise_distances_chunked(
         sub_mat, reduce_func=reduce_func, metric="manhattan"
     )
-        #sub_mat, reduce_func=reduce_func, metric="manhattan", n_jobs=args.jobs, working_memory=2048
 
     neigh = list(chain.from_iterable(gen))
 
@@ -123,15 +123,7 @@ def main():
             cluster_id += 1
             meta.iloc[list(clust), meta.columns.get_loc("cluster_id")] = cluster_id
 
-    meta.to_csv(
-        os.path.join(args.outdir, "meta-with-clusters.tsv"), sep="\t", index=False
-    )
-
-    meta[["seqName", "clade", "totalMutations", "substitutions", "aaSubstitutions", "cluster_id"]].to_csv(
-        os.path.join(args.outdir, "meta-with-clusters-simpler.tsv"), sep="\t", index=False
-    )
-
-    meta[["seqName", "cluster_id"]].to_csv(
+    meta[[args.id_col, "cluster_id"]].to_csv(
         os.path.join(args.outdir, "clusters.tsv"), sep="\t", index=False
     )
 
