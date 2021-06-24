@@ -29,6 +29,9 @@ def main():
     parser.add_argument("--outdir", default="output", help="Output directory for all output files")
     parser.add_argument("--max-dist", type=int, default=1, help="Maximum parwise distance")
     parser.add_argument("--min-cluster-size", type=int, default=2, help="Minimum cluster size")
+    parser.add_argument("--trim-start", type=int, default=100, help="Bases to trim from the beginning")
+    parser.add_argument("--trim-end", type=int, default=50, help="Bases to trim from the end")
+    parser.add_argument("--reference-length", type=int, default=29903, help="Length of reference genome (defaults to NC_045512.2 length = 29903)")
 
     parser.set_defaults(
         input_file="../input/covsonar/rki-2021-05-19-minimal.tsv.gz",
@@ -69,6 +72,19 @@ def main():
                 d = [subt]
 
         for term in d:
+            # Skip all deletions by default
+            if term.startswith("del"):
+                #print(f"skipping: {term}");
+                continue
+
+            # Blindly remove reference and alt NT, leaving the position. Then
+            # check if it is in the regions we want to trim away
+            pos = int(term.translate(str.maketrans('', '', 'ACGTN')))
+            #pos = int(term.replace("ACGTN", ""))
+            if ((args.trim_start is not None) and (pos <= args.trim_start)) or ((args.trim_end is not None) and (pos >= args.trim_end)):
+                #print(f"skipping: {term}");
+                continue
+
             index = vocabulary.setdefault(term, len(vocabulary))
             indices.append(index)
             data.append(1)
