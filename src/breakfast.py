@@ -13,6 +13,7 @@ import numpy as np
 import math
 import os
 import datetime
+import re
 
 import networkx
 from networkx.algorithms.components.connected import connected_components
@@ -56,6 +57,7 @@ def main():
     meta = pd.read_table(args.input_file, usecols=[args.id_col, args.clust_col], dtype={args.id_col: str, args.clust_col: str})
     print(f"Number of sequences: {meta.shape[0]}")
 
+    insertion = re.compile(".*[A-Z][A-Z]$")
     print("Convert list of substitutions into a sparse matrix")
     subs = meta[args.clust_col]
     indptr = [0]
@@ -77,11 +79,15 @@ def main():
                 #print(f"skipping: {term}");
                 continue
 
+            if insertion.match(term) is not None:
+                print(f"skipping: {term}");
+                continue
+
             # Blindly remove reference and alt NT, leaving the position. Then
             # check if it is in the regions we want to trim away
             pos = int(term.translate(str.maketrans('', '', 'ACGTN')))
             #pos = int(term.replace("ACGTN", ""))
-            if ((args.trim_start is not None) and (pos <= args.trim_start)) or ((args.trim_end is not None) and (pos >= args.trim_end)):
+            if ((args.trim_start is not None) and (pos <= args.trim_start)) or ((args.trim_end is not None) and (pos >= (args.reference_length - args.trim_end))):
                 #print(f"skipping: {term}");
                 continue
 
