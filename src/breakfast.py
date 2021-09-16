@@ -20,6 +20,30 @@ import networkx
 from networkx.algorithms.components.connected import connected_components
 
 
+# Merge connected components
+def _to_graph(l):
+    G = networkx.Graph()
+    for part in l:
+        # each sublist is a bunch of nodes
+        G.add_nodes_from(part)
+        # it also imlies a number of edges:
+        G.add_edges_from(_to_edges(part))
+    return G
+
+
+def _to_edges(l):
+    """
+    treat `l` as a Graph and returns it's edges
+    to_edges(['a','b','c','d']) -> [(a,b), (b,c),(c,d)]
+    """
+    it = iter(l)
+    last = next(it)
+
+    for current in it:
+        yield last, current
+        last = current
+
+
 def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -126,8 +150,8 @@ def main():
     )
     print(f"Number of sequences: {meta.shape[0]}")
 
-    insertion = re.compile(".*[A-Z][A-Z]$")
     print("Convert list of substitutions into a sparse matrix")
+    insertion = re.compile(".*[A-Z][A-Z]$")
     subs = meta[args.clust_col]
     indptr = [0]
     indices = []
@@ -178,40 +202,17 @@ def main():
 
     print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
 
-    def reduce_func(D_chunk, start):
+    def _reduce_func(D_chunk, start):
         neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
         return neigh
 
     gen = pairwise_distances_chunked(
-        sub_mat, reduce_func=reduce_func, metric="manhattan"
+        sub_mat, reduce_func=_reduce_func, metric="manhattan"
     )
-
     neigh = list(chain.from_iterable(gen))
 
-    # Merge connected components
-    def to_graph(l):
-        G = networkx.Graph()
-        for part in l:
-            # each sublist is a bunch of nodes
-            G.add_nodes_from(part)
-            # it also imlies a number of edges:
-            G.add_edges_from(to_edges(part))
-        return G
-
-    def to_edges(l):
-        """
-        treat `l` as a Graph and returns it's edges
-        to_edges(['a','b','c','d']) -> [(a,b), (b,c),(c,d)]
-        """
-        it = iter(l)
-        last = next(it)
-
-        for current in it:
-            yield last, current
-            last = current
-
     print("Create graph and recover connected components")
-    G = to_graph(neigh)
+    G = _to_graph(neigh)
     clusters = connected_components(G)
 
     print("Save clusters")
