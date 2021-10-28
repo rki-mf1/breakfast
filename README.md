@@ -41,4 +41,4 @@ optional arguments:
 
 The breakfast logo is CC licensed:
 
-Breakfast by Tippawan Sookruay from the Noun Project
+Breakfast by Tippawan Sookruay from the Noun Project.
