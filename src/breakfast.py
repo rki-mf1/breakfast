@@ -5,7 +5,6 @@ import collections
 import sys
 from itertools import chain
 from scipy.sparse import csr_matrix
-from numpy import array
 
 from sklearn.metrics import pairwise_distances_chunked
 from sklearn.metrics import pairwise_distances
@@ -106,7 +105,7 @@ def main():
     )
     parser.add_argument(
         "--cluster-tsv",
-        help="Path to Cluster.tsv from previous run",
+        help="Path to result file cluster.tsv from previous run",
     )
 
     parser.set_defaults(
@@ -149,7 +148,7 @@ def main():
 
     meta = pd.read_table(
         args.input_file,
-        usecols=[args.id_col, args.clust_col, 'date'],
+        usecols=[args.id_col, args.clust_col],
         dtype={args.id_col: str, args.clust_col: str},
         sep=args.sep,
     )
@@ -163,7 +162,8 @@ def main():
         meta_newtoday = meta.merge(cluster_pd, how = 'outer' , on='accession', indicator=True).loc[lambda x : x['_merge']=='left_only']
         print(f"Number of new sequences: {meta_newtoday.shape[0]}")
         meta = meta_common.append(meta_newtoday)
-        
+        meta = meta.loc[:, meta.columns!='_merge']
+
     print(f"Number of sequences: {meta.shape[0]}")
     
     print("Convert list of substitutions into a sparse matrix")
@@ -216,6 +216,9 @@ def main():
 
     print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
 
+    # TODO: JSON neigh and compute pairwise_distances of only new sequences
+    # would only work if order of sequences do not change
+
     def _reduce_func(D_chunk, start):
         neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
         return neigh
@@ -223,6 +226,7 @@ def main():
     gen = pairwise_distances_chunked(
         sub_mat, reduce_func=_reduce_func, metric="manhattan"
     )
+
     neigh = list(chain.from_iterable(gen))
 
     print("Create graph and recover connected components")
@@ -235,7 +239,7 @@ def main():
     for clust in clusters:
         if len(clust) >= args.min_cluster_size:
             cluster_id += 1
-            meta.iloc[list(clust), meta.columns.get_loc("cluster_id")] = min(clust)
+            meta.iloc[list(clust), meta.columns.get_loc("cluster_id")] = 1 + min(clust)
 
     meta[[args.id_col, "cluster_id"]].to_csv(
         os.path.join(args.outdir, "clusters.tsv"), sep="\t", index=False
