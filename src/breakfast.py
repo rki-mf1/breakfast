@@ -5,6 +5,7 @@ import collections
 import sys
 from itertools import chain
 from scipy.sparse import csr_matrix
+from numpy import array
 
 from sklearn.metrics import pairwise_distances_chunked
 from sklearn.metrics import pairwise_distances
@@ -103,6 +104,10 @@ def main():
         action=argparse.BooleanOptionalAction,
         help="Skip insertions",
     )
+    parser.add_argument(
+        "--cluster-tsv",
+        help="Path to Cluster.tsv from previous run",
+    )
 
     parser.set_defaults(
         input_file="../input/covsonar/rki-2021-05-19-minimal.tsv.gz",
@@ -144,12 +149,23 @@ def main():
 
     meta = pd.read_table(
         args.input_file,
-        usecols=[args.id_col, args.clust_col],
+        usecols=[args.id_col, args.clust_col, 'date'],
         dtype={args.id_col: str, args.clust_col: str},
         sep=args.sep,
     )
-    print(f"Number of sequences: {meta.shape[0]}")
 
+    if args.cluster_tsv is not None:
+        cluster_pd = pd.read_table(
+            args.cluster_tsv,
+            sep=args.sep,
+        )
+        meta_common = cluster_pd.merge(meta, on = 'accession', how = 'inner')
+        meta_newtoday = meta.merge(cluster_pd, how = 'outer' , on='accession', indicator=True).loc[lambda x : x['_merge']=='left_only']
+        print(f"Number of new sequences: {meta_newtoday.shape[0]}")
+        meta = meta_common.append(meta_newtoday)
+        
+    print(f"Number of sequences: {meta.shape[0]}")
+    
     print("Convert list of substitutions into a sparse matrix")
     insertion = re.compile(".*[A-Z][A-Z]$")
     subs = meta[args.clust_col]
@@ -165,7 +181,6 @@ def main():
                 d = subt.split(args.sep2)
             else:
                 d = [subt]
-
         for term in d:
             if args.var_type == "dna":
                 if term.startswith("del"):
@@ -193,7 +208,6 @@ def main():
             indices.append(index)
             data.append(1)
         indptr.append(len(indices))
-
     sub_mat = csr_matrix((data, indices, indptr), dtype=int)
     num_nz = sub_mat.getnnz()
     print(
@@ -221,7 +235,7 @@ def main():
     for clust in clusters:
         if len(clust) >= args.min_cluster_size:
             cluster_id += 1
-            meta.iloc[list(clust), meta.columns.get_loc("cluster_id")] = cluster_id
+            meta.iloc[list(clust), meta.columns.get_loc("cluster_id")] = min(clust)
 
     meta[[args.id_col, "cluster_id"]].to_csv(
         os.path.join(args.outdir, "clusters.tsv"), sep="\t", index=False
