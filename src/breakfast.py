@@ -219,6 +219,8 @@ def main():
     # TODO: JSON neigh and compute pairwise_distances of only new sequences
     # would only work if order of sequences do not change
 
+    # TODO: Try scipy distance see if faster
+
     def _reduce_func(D_chunk, start):
         neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
         return neigh
@@ -228,7 +230,7 @@ def main():
     )
 
     neigh = list(chain.from_iterable(gen))
-
+    
     print("Create graph and recover connected components")
     G = _to_graph(neigh)
     clusters = connected_components(G)
