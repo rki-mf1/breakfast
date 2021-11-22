@@ -104,7 +104,7 @@ def main():
         help="Skip insertions",
     )
     parser.add_argument(
-        "--cluster-tsv",
+        "--previous-result",
         help="Path to result file cluster.tsv from previous run",
     )
 
@@ -153,9 +153,9 @@ def main():
         sep=args.sep,
     )
 
-    if args.cluster_tsv is not None:
+    if args.previous_result is not None:
         cluster_pd = pd.read_table(
-            args.cluster_tsv,
+            args.previous_result,
             sep=args.sep,
         )
         meta_common = cluster_pd.merge(meta, on = args.id_col, how = 'left')
@@ -173,10 +173,8 @@ def main():
     else:
         print("Result file from previous run not accessible. Cluster IDs will be recalculated!")
 
-    
-    print(f"Number of sequences: {meta.shape[0]}")
-    
 
+    print(f"Number of sequences: {meta.shape[0]}")
 
     print("Convert list of substitutions into a sparse matrix")
     insertion = re.compile(".*[A-Z][A-Z]$")
