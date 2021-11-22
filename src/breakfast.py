@@ -158,14 +158,26 @@ def main():
             args.cluster_tsv,
             sep=args.sep,
         )
-        meta_common = cluster_pd.merge(meta, on = 'accession', how = 'inner')
-        meta_newtoday = meta.merge(cluster_pd, how = 'outer' , on='accession', indicator=True).loc[lambda x : x['_merge']=='left_only']
-        print(f"Number of new sequences: {meta_newtoday.shape[0]}")
+        meta_common = cluster_pd.merge(meta, on = args.id_col, how = 'left')
+
+        # show deleted sequences 
+        meta_deleted= cluster_pd.merge(meta, on = args.id_col, indicator = True, how='left').loc[lambda x : x['_merge']!='both']
+        print(f"Number of deleted sequences compared to previous run: {meta_deleted.shape[0]}")
+        if not meta_deleted.empty:
+            print(f"The following sequences were deleted\n {meta_deleted[args.id_col].tolist()}\n")
+        # append new sequences at the end of the df to keep the same order from the previous run
+        meta_newtoday = meta.merge(cluster_pd, how = 'outer' , on=args.id_col, indicator=True).loc[lambda x : x['_merge']=='left_only']
+        print(f"Number of new sequences compared to previous run: {meta_newtoday.shape[0]}")
         meta = meta_common.append(meta_newtoday)
         meta = meta.loc[:, meta.columns!='_merge']
+    else:
+        print("Result file from previous run not accessible. Cluster IDs will be recalculated!")
 
+    
     print(f"Number of sequences: {meta.shape[0]}")
     
+
+
     print("Convert list of substitutions into a sparse matrix")
     insertion = re.compile(".*[A-Z][A-Z]$")
     subs = meta[args.clust_col]
@@ -216,10 +228,6 @@ def main():
 
     print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
 
-    # TODO: JSON neigh and compute pairwise_distances of only new sequences
-    # would only work if order of sequences do not change
-
-    # TODO: Try scipy distance see if faster
 
     def _reduce_func(D_chunk, start):
         neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
