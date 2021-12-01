@@ -7,10 +7,10 @@ substitutions).
 ## Usage
 
 ```
-usage: breakfast.py [-h] [--input-file INPUT_FILE] [--id-col ID_COL] [--clust-col CLUST_COL] [--var-type VAR_TYPE]
-                    [--sep2 SEP2] [--sep SEP] [--outdir OUTDIR] [--max-dist MAX_DIST] [--min-cluster-size MIN_CLUSTER_SIZE]
-		    [--trim-start TRIM_START] [--trim-end TRIM_END] [--reference-length REFERENCE_LENGTH]
-		    [--skip-del | --no-skip-del] [--skip-ins | --no-skip-ins]
+usage: breakfast.py [-h] [--input-file INPUT_FILE] [--id-col ID_COL] [--clust-col CLUST_COL] [--var-type VAR_TYPE] [--sep2 SEP2]
+                    [--sep SEP] [--outdir OUTDIR] [--max-dist MAX_DIST] [--min-cluster-size MIN_CLUSTER_SIZE] [--trim-start TRIM_START]
+                    [--trim-end TRIM_END] [--reference-length REFERENCE_LENGTH] [--skip-del | --no-skip-del]
+                    [--skip-ins | --no-skip-ins] [--previous-result PREVIOUS_RESULT]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -32,9 +32,11 @@ optional arguments:
   --reference-length REFERENCE_LENGTH
                         Length of reference genome (defaults to NC_045512.2 length = 29903) (default: 29903)
   --skip-del, --no-skip-del
-                        Skip deletions (default: True) (default: True)
+                        Skip deletions (default: True)
   --skip-ins, --no-skip-ins
-                        Skip insertions (default: True) (default: True)
+                        Skip insertions (default: True)
+  --previous-result PREVIOUS_RESULT
+                        Path to result file cluster.tsv from previous run (default: None)
 ```
 
 ## Logo

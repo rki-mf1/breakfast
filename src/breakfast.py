@@ -145,6 +145,7 @@ def main():
     print(f"  reference length (bp) = {args.reference_length}")
     print(f"  skip deletions = {args.skip_del}")
     print(f"  skip insertions = {args.skip_ins}")
+    print(f"  previous results = {args.previous_result}")
 
     meta = pd.read_table(
         args.input_file,
