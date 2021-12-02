@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+VERSION="0.2.0"
 
 import argparse
 import collections
@@ -107,6 +108,8 @@ def main():
         "--previous-result",
         help="Path to result file cluster.tsv from previous run",
     )
+
+    parser.add_argument('--version', action='version', version='%(prog)s ' + VERSION)
 
     parser.set_defaults(
         input_file="../input/covsonar/rki-2021-05-19-minimal.tsv.gz",
