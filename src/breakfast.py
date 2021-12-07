@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-VERSION="0.2.0"
+VERSION="0.2.1"
 
 import argparse
 import collections
@@ -150,6 +150,7 @@ def main():
     print(f"  skip insertions = {args.skip_ins}")
     print(f"  previous results = {args.previous_result}")
 
+
     meta = pd.read_table(
         args.input_file,
         usecols=[args.id_col, args.clust_col],
@@ -157,7 +158,7 @@ def main():
         sep=args.sep,
     )
 
-    if args.previous_result is not None:
+    if os.path.isfile(args.previous_result):
         cluster_pd = pd.read_table(
             args.previous_result,
             sep=args.sep,
@@ -258,7 +259,6 @@ def main():
     )
 
     print(f"Number of clusters found: {cluster_id}")
-
 
 # Main body
 if __name__ == "__main__":
