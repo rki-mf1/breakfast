@@ -158,7 +158,7 @@ def main():
         sep=args.sep,
     )
 
-    if os.path.isfile(args.previous_result):
+    if os.path.isfile(str(args.previous_result)):
         cluster_pd = pd.read_table(
             args.previous_result,
             sep=args.sep,
