@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-VERSION="0.2.1"
+VERSION="0.2.2"
 
 import argparse
 import collections
@@ -107,6 +107,7 @@ def main():
     parser.add_argument(
         "--previous-result",
         help="Path to result file cluster.tsv from previous run",
+        default=""
     )
 
     parser.add_argument('--version', action='version', version='%(prog)s ' + VERSION)
@@ -150,7 +151,6 @@ def main():
     print(f"  skip insertions = {args.skip_ins}")
     print(f"  previous results = {args.previous_result}")
 
-
     meta = pd.read_table(
         args.input_file,
         usecols=[args.id_col, args.clust_col],
@@ -158,7 +158,7 @@ def main():
         sep=args.sep,
     )
 
-    if os.path.isfile(str(args.previous_result)):
+    if os.path.isfile(args.previous_result):
         cluster_pd = pd.read_table(
             args.previous_result,
             sep=args.sep,
@@ -259,6 +259,7 @@ def main():
     )
 
     print(f"Number of clusters found: {cluster_id}")
+
 
 # Main body
 if __name__ == "__main__":
