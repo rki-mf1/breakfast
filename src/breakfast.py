@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-VERSION="0.2.2"
+VERSION="0.2.3"
 
 import argparse
 import collections
@@ -173,7 +173,7 @@ def main():
         # append new sequences at the end of the df to keep the same order from the previous run
         meta_newtoday = meta.merge(cluster_pd, how = 'outer' , on=args.id_col, indicator=True).loc[lambda x : x['_merge']=='left_only']
         print(f"Number of new sequences compared to previous run: {meta_newtoday.shape[0]}")
-        meta = meta_common.append(meta_newtoday)
+        meta = pd.concat([meta_common, meta_newtoday])
         meta = meta.loc[:, meta.columns!='_merge']
     else:
         print("Result file from previous run not accessible. Cluster IDs will be recalculated!")
