@@ -2,6 +2,8 @@
 
 `breakfast` is a simple and fast clustering script developed for SARS-CoV-2 genomes using precalculated sequence features (e.g. nucleotide substitutions) from [Covsonar](https://gitlab.com/s.fuchs/covsonar). 
 
+**This project is under development and in experimental stage**
+
 ## Installation
 
 ### System Dependencies
