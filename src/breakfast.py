@@ -144,13 +144,17 @@ def main():
     print(f"  reference length (bp) = {args.reference_length}")
     print(f"  skip deletions = {args.skip_del}")
     print(f"  skip insertions = {args.skip_ins}")
-
-    meta = pd.read_table(
-        args.input_file,
-        usecols=[args.id_col, args.clust_col],
-        dtype={args.id_col: str, args.clust_col: str},
-        sep=args.sep,
-    )
+    
+    if os.path.isfile(args.input_file):
+      meta = pd.read_table(
+          args.input_file,
+          usecols=[args.id_col, args.clust_col],
+          dtype={args.id_col: str, args.clust_col: str},
+          sep=args.sep,
+       )
+    else:
+      print(f"The input file {args.input_file} cannot be found!")
+      exit()
 
     print(f"Number of sequences: {meta.shape[0]}")
 
