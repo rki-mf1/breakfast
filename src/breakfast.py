@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-VERSION="0.2.3"
+VERSION="0.2.4"
 
 import argparse
 import collections
@@ -104,11 +104,6 @@ def main():
         action=argparse.BooleanOptionalAction,
         help="Skip insertions",
     )
-    parser.add_argument(
-        "--previous-result",
-        help="Path to result file cluster.tsv from previous run",
-        default=""
-    )
 
     parser.add_argument('--version', action='version', version='%(prog)s ' + VERSION)
 
@@ -149,7 +144,6 @@ def main():
     print(f"  reference length (bp) = {args.reference_length}")
     print(f"  skip deletions = {args.skip_del}")
     print(f"  skip insertions = {args.skip_ins}")
-    print(f"  previous results = {args.previous_result}")
 
     meta = pd.read_table(
         args.input_file,
@@ -157,27 +151,6 @@ def main():
         dtype={args.id_col: str, args.clust_col: str},
         sep=args.sep,
     )
-
-    if os.path.isfile(args.previous_result):
-        cluster_pd = pd.read_table(
-            args.previous_result,
-            sep=args.sep,
-        )
-        meta_common = cluster_pd.merge(meta, on = args.id_col, how = 'left')
-
-        # show deleted sequences 
-        meta_deleted= cluster_pd.merge(meta, on = args.id_col, indicator = True, how='left').loc[lambda x : x['_merge']!='both']
-        print(f"Number of deleted sequences compared to previous run: {meta_deleted.shape[0]}")
-        if not meta_deleted.empty:
-            print(f"The following sequences were deleted\n {meta_deleted[args.id_col].tolist()}\n")
-        # append new sequences at the end of the df to keep the same order from the previous run
-        meta_newtoday = meta.merge(cluster_pd, how = 'outer' , on=args.id_col, indicator=True).loc[lambda x : x['_merge']=='left_only']
-        print(f"Number of new sequences compared to previous run: {meta_newtoday.shape[0]}")
-        meta = pd.concat([meta_common, meta_newtoday])
-        meta = meta.loc[:, meta.columns!='_merge']
-    else:
-        print("Result file from previous run not accessible. Cluster IDs will be recalculated!")
-
 
     print(f"Number of sequences: {meta.shape[0]}")
 
@@ -252,7 +225,7 @@ def main():
     for clust in clusters:
         if len(clust) >= args.min_cluster_size:
             cluster_id += 1
-            meta.iloc[list(clust), meta.columns.get_loc("cluster_id")] = 1 + min(clust)
+            meta.iloc[list(clust), meta.columns.get_loc("cluster_id")] = cluster_id
 
     meta[[args.id_col, "cluster_id"]].to_csv(
         os.path.join(args.outdir, "clusters.tsv"), sep="\t", index=False
