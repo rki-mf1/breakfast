@@ -159,7 +159,7 @@ def main():
     print(f"Number of sequences: {meta.shape[0]}")
 
     print(f"Number of duplicates: {meta[args.clust_col].duplicated().sum()}")
-    
+
     meta_withoutDUPS = meta.groupby(args.clust_col,as_index=False).agg({args.id_col:lambda x : list(x),args.clust_col:'first'})
 
     print(f"Number of sequences without duplicates: {meta_withoutDUPS.shape[0]}")
@@ -232,9 +232,9 @@ def main():
 
 
     print("Save clusters")
-    meta_withoutDUPS["cluster_id"] = pd.NA
+    meta_withoutDUPS['cluster_id'] = pd.NA
     cluster_id = 0
-    accession_list = meta_withoutDUPS['accession'].tolist()
+    accession_list = meta_withoutDUPS[args.id_col].tolist()
     for clust in clusters:
         clust_len = 0
         for set_clust in clust:
@@ -247,20 +247,19 @@ def main():
     # Assign correct ID
     meta_clusterid = []
     meta_accession = []
-    accession_ids = meta_withoutDUPS['accession'].tolist()
     cluster_ids = meta_withoutDUPS['cluster_id'].tolist()
-    for accession, clust_id in zip(accession_ids, cluster_ids):
+    for accession, clust_id in zip(accession_list, cluster_ids):
       for seq in accession:
         meta_accession.append(seq)
         meta_clusterid.append(clust_id)
 
     meta_out = pd.DataFrame()
-    meta_out['accession'] = meta_accession
+    meta_out[args.id_col] = meta_accession
     meta_out['cluster_id'] = meta_clusterid
 
     # Sort according to input file
-    meta_out = meta_out.set_index('accession')
-    meta_out = meta_out.reindex(index=meta['accession'])
+    meta_out = meta_out.set_index(args.id_col)
+    meta_out = meta_out.reindex(index=meta[args.id_col])
     meta_out = meta_out.reset_index()
 
     meta_out[[args.id_col, "cluster_id"]].to_csv(
