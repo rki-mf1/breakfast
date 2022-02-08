@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-VERSION="0.2.4"
+VERSION="0.3.0"
 
 import argparse
 import collections
@@ -158,9 +158,15 @@ def main():
 
     print(f"Number of sequences: {meta.shape[0]}")
 
+    print(f"Number of duplicates: {meta[args.clust_col].duplicated().sum()}")
+
+    meta_withoutDUPS = meta.groupby(args.clust_col,as_index=True).agg({args.id_col:lambda x : list(x),args.clust_col:'first'})
+
+    print(f"Number of sequences without duplicates: {meta_withoutDUPS.shape[0]}")
+
     print("Convert list of substitutions into a sparse matrix")
     insertion = re.compile(".*[A-Z][A-Z]$")
-    subs = meta[args.clust_col]
+    subs = meta_withoutDUPS[args.clust_col]
     indptr = [0]
     indices = []
     data = []
@@ -214,22 +220,42 @@ def main():
         return neigh
 
     gen = pairwise_distances_chunked(
-        sub_mat, reduce_func=_reduce_func, metric="manhattan"
+        sub_mat, reduce_func=_reduce_func, metric="manhattan", n_jobs=1
     )
 
     neigh = list(chain.from_iterable(gen))
-    
+
+
     print("Create graph and recover connected components")
     G = _to_graph(neigh)
     clusters = connected_components(G)
 
+
     print("Save clusters")
-    meta["cluster_id"] = pd.NA
+    meta_withoutDUPS["cluster_id"] = pd.NA
     cluster_id = 0
+    accession_list = meta_withoutDUPS['accession'].tolist()
     for clust in clusters:
-        if len(clust) >= args.min_cluster_size:
-            cluster_id += 1
-            meta.iloc[list(clust), meta.columns.get_loc("cluster_id")] = cluster_id
+        clust_len = 0
+        for set_clust in clust:
+          clust_len += len(accession_list[set_clust])
+        if clust_len >= args.min_cluster_size:
+          cluster_id += 1
+          meta_withoutDUPS.iloc[list(clust), meta_withoutDUPS.columns.get_loc("cluster_id")] = cluster_id
+
+    # Assign correct ID
+    meta_clusterid = []
+    meta_accession = []
+    accession_ids = meta_withoutDUPS['accession'].tolist()
+    cluster_ids = meta_withoutDUPS['cluster_id'].tolist()
+    for x,y in zip(accession_ids, cluster_ids):
+      for seq in x:
+        meta_accession.append(seq)
+        meta_clusterid.append(y)
+
+    meta = pd.DataFrame()
+    meta['accession'] = meta_accession
+    meta['cluster_id'] = meta_clusterid
 
     meta[[args.id_col, "cluster_id"]].to_csv(
         os.path.join(args.outdir, "clusters.tsv"), sep="\t", index=False
