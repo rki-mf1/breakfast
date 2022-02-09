@@ -158,12 +158,89 @@ def main():
 
     print(f"Number of sequences: {meta.shape[0]}")
 
+    # Remove INS and DEL from mutation profiles before grouping sequences together
+    if args.skip_del or args.skip_ins:
+      subs = meta[args.clust_col]
+      new_sub = []
+      insertion = re.compile(".*[A-Z][A-Z]$")
+      for subt in subs:
+        if isinstance(subt, float):
+            d = []
+        else:
+            if subt.find(args.sep2) != -1:
+                d = subt.split(args.sep2)
+            else:
+                d = [subt]
+        new_d = []
+        for term in d:
+            if args.var_type == "dna":
+                if term.startswith("del"):
+                    if args.skip_del:
+                        continue
+                    pos = int(term.split(":")[1])
+                    if ((args.trim_start is not None) and (pos <= args.trim_start)) or (
+                        (args.trim_end is not None)
+                        and (pos >= (args.reference_length - args.trim_end))
+                    ):
+                        continue
+                elif args.skip_ins and insertion.match(term) is not None:
+                    continue
+                else:
+                    # Blindly remove reference and alt NT, leaving the position. Then
+                    # check if it is in the regions we want to trim away
+                    pos = int(term.translate(str.maketrans("", "", "ACGTN")))
+                    if ((args.trim_start is not None) and (pos <= args.trim_start)) or (
+                        (args.trim_end is not None)
+                        and (pos >= (args.reference_length - args.trim_end))
+                    ):
+                        continue
+            new_d.append(term)
+        new_sub.append(' '.join(new_d))
+    meta[args.clust_col] = new_sub
+
     print(f"Number of duplicates: {meta[args.clust_col].duplicated().sum()}")
 
-    meta_withoutDUPS = meta.groupby(args.clust_col,as_index=False).agg({args.id_col:lambda x : list(x),args.clust_col:'first'})
+    # Group genomes with identical sequences together
+    meta_withoutDUPS = meta.groupby(args.clust_col,as_index=False, sort=False).agg({args.id_col:lambda x : list(x),args.clust_col:'first'})
 
     print(f"Number of sequences without duplicates: {meta_withoutDUPS.shape[0]}")
 
+    if args.max_dist == 0:
+        print("Skip sparse matrix calculation since max-dist = 0")
+        clusters = list(range(0,len(meta_withoutDUPS)))
+        accession_list = meta_withoutDUPS[args.id_col].tolist()
+        meta_withoutDUPS['cluster_id'] = pd.NA
+        cluster_id = 0
+        for clust in clusters:
+          clust_len = len(accession_list[clust])
+          if clust_len >= args.min_cluster_size:
+            cluster_id += 1
+            meta_withoutDUPS.iloc[clust, meta_withoutDUPS.columns.get_loc("cluster_id")] = cluster_id
+        meta_clusterid = []
+        meta_accession = []
+        cluster_ids = meta_withoutDUPS['cluster_id'].tolist()
+        for accession, clust_id in zip(accession_list, cluster_ids):
+          for seq in accession:
+            meta_accession.append(seq)
+            meta_clusterid.append(clust_id)
+
+        meta_out = pd.DataFrame()
+        meta_out[args.id_col] = meta_accession
+        meta_out['cluster_id'] = meta_clusterid
+
+        # Sort according to input file
+        meta_out = meta_out.set_index(args.id_col)
+        meta_out = meta_out.reindex(index=meta[args.id_col])
+        meta_out = meta_out.reset_index()
+
+        meta_out[[args.id_col, "cluster_id"]].to_csv(
+          os.path.join(args.outdir, "clusters.tsv"), sep="\t", index=False
+        )
+        print(f"Number of clusters found: {cluster_id}")
+        exit()
+
+
+    #else: run rest
     print("Convert list of substitutions into a sparse matrix")
     insertion = re.compile(".*[A-Z][A-Z]$")
     subs = meta_withoutDUPS[args.clust_col]
@@ -201,7 +278,6 @@ def main():
                         and (pos >= (args.reference_length - args.trim_end))
                     ):
                         continue
-
             index = vocabulary.setdefault(term, len(vocabulary))
             indices.append(index)
             data.append(1)
