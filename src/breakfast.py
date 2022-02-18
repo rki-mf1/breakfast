@@ -11,9 +11,7 @@ from sklearn.metrics import pairwise_distances_chunked
 from sklearn.metrics import pairwise_distances
 import pandas as pd
 import numpy as np
-import math
 import os
-import datetime
 import re
 
 
@@ -35,12 +33,11 @@ from Cython.Build import cythonize
 
 import pyximport
 pyximport.install()
-#import _pairwise_fast
-#from _pairwise_fast import _sparse_manhattan
+import _pairwise_fast_breakfast
+#from _pairwise_fast_breakfast import _sparse_manhattan_breakfast, _sparse_manhattan
 
 
-#def manhattan_distances_breakfast(X, max_dist, mutation_length_list, Y=None, *, sum_over_features=True):
-def manhattan_distances_breakfast(X, Y=None, *, sum_over_features=True):
+def manhattan_distances_breakfast(X, max_dist, mutation_length_list, Y=None, *, sum_over_features=True):
     X, Y = check_pairwise_arrays(X, Y)
     if issparse(X) or issparse(Y):
         if not sum_over_features:
@@ -54,15 +51,20 @@ def manhattan_distances_breakfast(X, Y=None, *, sum_over_features=True):
         X.sum_duplicates()  # this also sorts indices in-place
         Y.sum_duplicates()
         D = np.zeros((X.shape[0], Y.shape[0]))
-
-        #mutation_length_list = [float(i) for i in mutation_length_list]
-        #mutation_length_array = np.array(mutation_length_list)
-        #max_dist = float(max_dist)
+        # TODO: Set args.max_dist and list of mutation lengths as parameters
+        mutation_length_list = [float(i) for i in mutation_length_list]
+        mutation_length_array = np.array(mutation_length_list)
+        max_dist = float(max_dist)
+        print(mutation_length_array)
+        print(max_dist)
+        #print(X.indptr)
+        #print(len(X.indptr))
         #print(len(mutation_length_array))
-        #print(max_dist)
-        #print(D.shape[0], D.shape[1])
-        #_sparse_manhattan(X.data, X.indices, X.indptr, Y.data, Y.indices, Y.indptr, D, max_dist, mutation_length_array)
+        #print(X.shape[0], Y.shape[0])
+        print(D.shape[0], D.shape[1])
+        #print(X.shape[1], Y.shape[1])
         _sparse_manhattan(X.data, X.indices, X.indptr, Y.data, Y.indices, Y.indptr, D)
+        #_sparse_manhattan_breakfast(X.data, X.indices, X.indptr, Y.data, Y.indices, Y.indptr, D, max_dist, mutation_length_array)
         return D
 
     if sum_over_features:
@@ -158,7 +160,7 @@ def pairwise_distances_chunked(
 
     #TODO: Slice mutation_length_list ....
     for sl in slices:
-        #print(sl)
+        print(sl)
         if sl.start == 0 and sl.stop == n_samples_X:
             X_chunk = X  # enable optimised paths for X is Y
             #TODO:
@@ -168,7 +170,6 @@ def pairwise_distances_chunked(
             #TODO: 
             mutation_length_list_chunk = mutation_length_list[sl]
         #print(X_chunk, mutation_length_list_chunk)
-        #print(len(mutation_length_list))
         D_chunk = pairwise_distances(X_chunk, max_dist, mutation_length_list, Y, metric=metric, n_jobs=n_jobs, **kwds)
         if (X is Y or Y is None) and PAIRWISE_DISTANCE_FUNCTIONS.get(
             metric, None
@@ -248,8 +249,8 @@ def _parallel_pairwise(X, Y, func, n_jobs, max_dist,
 
     if effective_n_jobs(n_jobs) == 1:
         #TODO: Add parameters here 
-        #return func(X, max_dist, mutation_length_list, Y, **kwds)
-        return func(X, Y, **kwds)
+        return func(X, max_dist, mutation_length_list, Y, **kwds)
+        #return func(X, Y, **kwds)
 
     # enforce a threading backend to prevent data communication overhead
     fd = delayed(_dist_wrapper)
@@ -375,8 +376,8 @@ def calc_sparse_matrix(meta_withoutDUPS, args):
                         and (pos >= (args.reference_length - args.trim_end))
                     ):
                         continue
-            index = vocabulary.setdefault(term, len(vocabulary))
             mutation_counter += 1
+            index = vocabulary.setdefault(term, len(vocabulary))
             indices.append(index)
             data.append(1)
         indptr.append(len(indices))
@@ -559,7 +560,6 @@ def main():
     else:
       print(f"The input file {args.input_file} cannot be found!")
       exit()
-
 
     print(f"Number of sequences: {meta.shape[0]}")
 
