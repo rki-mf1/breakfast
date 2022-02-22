@@ -2,7 +2,6 @@
 VERSION="0.3.0"
 
 import argparse
-import collections
 import sys
 from itertools import chain
 from scipy.sparse import csr_matrix
@@ -13,7 +12,6 @@ import pandas as pd
 import numpy as np
 import os
 import re
-#import pickle
 import _pickle as cPickle
 
 
@@ -26,9 +24,7 @@ from scipy.sparse import issparse
 from scipy.spatial import distance
 from sklearn.metrics.pairwise import *
 from sklearn.metrics.pairwise import _check_chunk_size, _precompute_metric_params, _return_float_dtype
-#import sklearn.datasets
 from sklearn.utils.validation import _num_samples
-#import Cython
 from setuptools import setup
 from Cython.Build import cythonize
 
@@ -37,7 +33,6 @@ pyximport.install(setup_args={"script_args" : ["--verbose"]})
 
 from sklearn.metrics._pairwise_fast import _sparse_manhattan
 #from _pairwise_fast import _sparse_manhattan
-
 #import time
 #start_time = time.time()
 
@@ -272,8 +267,6 @@ def _parallel_pairwise(X, Y, func, n_jobs, **kwds):
 
     return ret
 
-########################################
-
 
 
 # Merge connected components
@@ -343,18 +336,15 @@ def remove_indels(meta, args):
 
 def calc_sparse_matrix(meta_withoutDUPS, args):
     print("Convert list of substitutions into a sparse matrix")
-
-
-
     insertion = re.compile(".*[A-Z][A-Z]$")
     subs = meta_withoutDUPS[args.clust_col]
     indptr = [0]
     indices = []
     data = []
-    mutation_len = []
+    #mutation_len = []
     vocabulary = {}
     for subt in subs:
-        mutation_counter = 0
+        #mutation_counter = 0
         if isinstance(subt, float):
             d = []
         else:
@@ -384,12 +374,12 @@ def calc_sparse_matrix(meta_withoutDUPS, args):
                         and (pos >= (args.reference_length - args.trim_end))
                     ):
                         continue
-            mutation_counter += 1
+            #mutation_counter += 1
             index = vocabulary.setdefault(term, len(vocabulary))
             indices.append(index)
             data.append(1)
         indptr.append(len(indices))
-        mutation_len.append(mutation_counter)
+        #mutation_len.append(mutation_counter)
     sub_mat = csr_matrix((data, indices, indptr), dtype=int)
     num_nz = sub_mat.getnnz()
     print(
@@ -409,6 +399,7 @@ def calc_sparse_matrix(meta_withoutDUPS, args):
             cached_sub_mat = loaded_obj['sub_mat']
             cached_meta = loaded_obj['meta']
             # TODO: Check if cached_meta same as previous meta 
+            # ELSE recalculate sub_mat
 
             gen = pairwise_distances_chunked(
             X=cached_sub_mat,
@@ -422,6 +413,8 @@ def calc_sparse_matrix(meta_withoutDUPS, args):
 
             # TODO later: Check if sequences got deleted
             # TODO later: Check if sequneces got modified
+            # TODO later: Compare version and print Warning if not equal
+            # TODO: Check max-dist parameter and abort in case they are not equal 
     else:
         print("Cached file from previous run not available")
 
@@ -462,6 +455,7 @@ def calc_sparse_matrix(meta_withoutDUPS, args):
     print(f"Number of clusters found: {cluster_id}")
     return meta_withoutDUPS
 
+# TODO: Caching results for max-dist 0 
 def calc_without_sparse_matrix(meta_withoutDUPS, args):
     print("Skip sparse matrix calculation since max-dist = 0")
     clusters = list(range(0,len(meta_withoutDUPS)))
