@@ -21,23 +21,26 @@ from networkx.algorithms.components.connected import connected_components
 
 from sklearn.metrics.pairwise import check_pairwise_arrays
 from scipy.sparse import issparse
-from sklearn.metrics._pairwise_fast import _sparse_manhattan
 from scipy.spatial import distance
 from sklearn.metrics.pairwise import *
 from sklearn.metrics.pairwise import _check_chunk_size, _precompute_metric_params, _return_float_dtype
-import sklearn.datasets
+#import sklearn.datasets
 from sklearn.utils.validation import _num_samples
-import Cython
+#import Cython
 from setuptools import setup
 from Cython.Build import cythonize
 
 import pyximport
-pyximport.install()
-import _pairwise_fast_breakfast
-#from _pairwise_fast_breakfast import _sparse_manhattan_breakfast, _sparse_manhattan
+pyximport.install(setup_args={"script_args" : ["--verbose"]})
+
+from sklearn.metrics._pairwise_fast import _sparse_manhattan
+#from _pairwise_fast import _sparse_manhattan
+
+#import time
+#start_time = time.time()
 
 
-def manhattan_distances_breakfast(X, max_dist, mutation_length_list, Y=None, *, sum_over_features=True):
+def manhattan_distances_breakfast(X, Y=None, *, sum_over_features=True):
     X, Y = check_pairwise_arrays(X, Y)
     if issparse(X) or issparse(Y):
         if not sum_over_features:
@@ -52,18 +55,21 @@ def manhattan_distances_breakfast(X, max_dist, mutation_length_list, Y=None, *, 
         Y.sum_duplicates()
         D = np.zeros((X.shape[0], Y.shape[0]))
         # TODO: Set args.max_dist and list of mutation lengths as parameters
-        mutation_length_list = [float(i) for i in mutation_length_list]
-        mutation_length_array = np.array(mutation_length_list)
-        max_dist = float(max_dist)
-        print(mutation_length_array)
-        print(max_dist)
+        #mutation_length_list = [float(i) for i in mutation_length_list]
+        #mutation_length_array = np.array(mutation_length_list)
+        #max_dist = float(max_dist)
+        #print(mutation_length_array)
+        #print(max_dist)
         #print(X.indptr)
         #print(len(X.indptr))
         #print(len(mutation_length_array))
         #print(X.shape[0], Y.shape[0])
-        print(D.shape[0], D.shape[1])
+        #print(D.shape[0], D.shape[1])
         #print(X.shape[1], Y.shape[1])
+
+        #print("--- %s seconds ---" % (time.time() - start_time))
         _sparse_manhattan(X.data, X.indices, X.indptr, Y.data, Y.indices, Y.indptr, D)
+        #print("--- %s seconds ---" % (time.time() - start_time))
         #_sparse_manhattan_breakfast(X.data, X.indices, X.indptr, Y.data, Y.indices, Y.indptr, D, max_dist, mutation_length_array)
         return D
 
@@ -128,8 +134,6 @@ def pairwise_distances_chunked(
     metric="euclidean",
     n_jobs=None,
     working_memory=None,
-    max_dist=None,
-    mutation_length_list=[],
     **kwds,
 ):
     n_samples_X = _num_samples(X)
@@ -160,17 +164,18 @@ def pairwise_distances_chunked(
 
     #TODO: Slice mutation_length_list ....
     for sl in slices:
-        print(sl)
+        #print(sl)
         if sl.start == 0 and sl.stop == n_samples_X:
             X_chunk = X  # enable optimised paths for X is Y
             #TODO:
-            mutation_length_list_chunk = mutation_length_list
+            #mutation_length_list_chunk = mutation_length_list
         else:
             X_chunk = X[sl]
             #TODO: 
-            mutation_length_list_chunk = mutation_length_list[sl]
+            #mutation_length_list_chunk = mutation_length_list[sl]
         #print(X_chunk, mutation_length_list_chunk)
-        D_chunk = pairwise_distances(X_chunk, max_dist, mutation_length_list, Y, metric=metric, n_jobs=n_jobs, **kwds)
+        D_chunk = pairwise_distances(X_chunk, Y, metric=metric, n_jobs=n_jobs, **kwds)
+        #D_chunk = pairwise_distances(X_chunk, max_dist, mutation_length_list, Y, metric=metric, n_jobs=n_jobs, **kwds)
         if (X is Y or Y is None) and PAIRWISE_DISTANCE_FUNCTIONS.get(
             metric, None
         ) is euclidean_distances:
@@ -184,7 +189,7 @@ def pairwise_distances_chunked(
         yield D_chunk
 
 def pairwise_distances(
-    X, max_dist, mutation_length_list, Y=None, metric="euclidean", *, n_jobs=None, force_all_finite=True, **kwds
+    X, Y=None, metric="euclidean", *, n_jobs=None, force_all_finite=True, **kwds
 ):
     if (
         metric not in _VALID_METRICS
@@ -235,11 +240,9 @@ def pairwise_distances(
             return distance.squareform(distance.pdist(X, metric=metric, **kwds))
         func = partial(distance.cdist, metric=metric, **kwds)
 
-    return _parallel_pairwise(X, Y, func, n_jobs, max_dist,
-    mutation_length_list, **kwds)
+    return _parallel_pairwise(X, Y, func, n_jobs, **kwds)
 
-def _parallel_pairwise(X, Y, func, n_jobs, max_dist,
-    mutation_length_list, **kwds):
+def _parallel_pairwise(X, Y, func, n_jobs, **kwds):
     """Break the pairwise matrix in n_jobs even slices
     and compute them in parallel."""
 
@@ -249,7 +252,7 @@ def _parallel_pairwise(X, Y, func, n_jobs, max_dist,
 
     if effective_n_jobs(n_jobs) == 1:
         #TODO: Add parameters here 
-        return func(X, max_dist, mutation_length_list, Y, **kwds)
+        return func(X, Y, **kwds)
         #return func(X, Y, **kwds)
 
     # enforce a threading backend to prevent data communication overhead
@@ -409,8 +412,8 @@ def calc_sparse_matrix(meta_withoutDUPS, args):
         reduce_func=_reduce_func, 
         metric="manhattan_breakfast", 
         n_jobs=1,
-        max_dist=args.max_dist,
-        mutation_length_list=mutation_len
+        #max_dist=args.max_dist,
+        #mutation_length_list=mutation_len
     )
 
     neigh = list(chain.from_iterable(gen))
