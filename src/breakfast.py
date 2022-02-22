@@ -344,13 +344,7 @@ def remove_indels(meta, args):
 def calc_sparse_matrix(meta_withoutDUPS, args):
     print("Convert list of substitutions into a sparse matrix")
 
-    # IMPORT RESULT FROM PREVIOUS RUN 
-    if os.path.isfile(args.input_cache):
-        with open(args.input_cache, 'rb') as f:
-            loaded_obj = cPickle.load(f)
-            print(loaded_obj)
-    else:
-        print("Cached file from previous run not available")
+
 
     insertion = re.compile(".*[A-Z][A-Z]$")
     subs = meta_withoutDUPS[args.clust_col]
@@ -408,22 +402,43 @@ def calc_sparse_matrix(meta_withoutDUPS, args):
         neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
         return neigh
 
+    # IMPORT RESULT FROM PREVIOUS RUN 
+    if os.path.isfile(args.input_cache):
+        with open(args.input_cache, 'rb') as f:
+            loaded_obj = cPickle.load(f)
+            cached_sub_mat = loaded_obj['sub_mat']
+            cached_meta = loaded_obj['meta']
+            # TODO: Check if cached_meta same as previous meta 
 
-    gen = pairwise_distances_chunked(
-        sub_mat, 
-        reduce_func=_reduce_func, 
-        metric="manhattan_breakfast", 
-        n_jobs=1,
-        #max_dist=args.max_dist,
-        #mutation_length_list=mutation_len
-    )
+            gen = pairwise_distances_chunked(
+            X=cached_sub_mat,
+            Y=sub_mat,
+            reduce_func=_reduce_func, 
+            metric="manhattan_breakfast", 
+            n_jobs=1,
+            #max_dist=args.max_dist,
+            #mutation_length_list=mutation_len
+        )
+
+            # TODO later: Check if sequences got deleted
+            # TODO later: Check if sequneces got modified
+    else:
+        print("Cached file from previous run not available")
+
+        gen = pairwise_distances_chunked(
+            sub_mat, 
+            reduce_func=_reduce_func, 
+            metric="manhattan_breakfast", 
+            n_jobs=1,
+            #max_dist=args.max_dist,
+            #mutation_length_list=mutation_len
+        )
 
     neigh = list(chain.from_iterable(gen))
 
 
-
     # EXPORT RESULTS FOR CACHING
-    d = {'sub_mat':sub_mat, 'neigh':neigh, 'max_dist': args.max_dist}
+    d = {'sub_mat': sub_mat, 'neigh':neigh, 'max_dist': args.max_dist, 'version': VERSION, 'meta':meta_withoutDUPS}
     with open(args.output_cache, 'wb') as f:
         cPickle.dump(d, f)
 
