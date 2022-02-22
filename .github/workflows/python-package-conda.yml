@@ -3,7 +3,7 @@ name: Python Package using Conda
 on:
   push:
     branches:
-      - '**'
+      - 'master'
 
 jobs:
   build-linux:
