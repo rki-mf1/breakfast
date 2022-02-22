@@ -13,6 +13,8 @@ import pandas as pd
 import numpy as np
 import os
 import re
+#import pickle
+import _pickle as cPickle
 
 
 import networkx
@@ -341,6 +343,15 @@ def remove_indels(meta, args):
 
 def calc_sparse_matrix(meta_withoutDUPS, args):
     print("Convert list of substitutions into a sparse matrix")
+
+    # IMPORT RESULT FROM PREVIOUS RUN 
+    if os.path.isfile(args.input_cache):
+        with open(args.input_cache, 'rb') as f:
+            loaded_obj = cPickle.load(f)
+            print(loaded_obj)
+    else:
+        print("Cached file from previous run not available")
+
     insertion = re.compile(".*[A-Z][A-Z]$")
     subs = meta_withoutDUPS[args.clust_col]
     indptr = [0]
@@ -393,19 +404,10 @@ def calc_sparse_matrix(meta_withoutDUPS, args):
 
     print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
 
-
-    # TODO: Save results from previous run? As JSON?
-
-    # TODO: Skip distance matrix calculation if len(sequence1) - len (sequence2) > max.dist
-    # need to change the sub_mat or even before that since D_chunk goes through all columns?
-    # group into smaller matrices which share similar amount of sequences??
-
-    # I would need to change start or remove sequences?
     def _reduce_func(D_chunk, start):
         neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
         return neigh
 
-    # TODO SOLUTIONS: CHANGE METRIC FUNCTION? 
 
     gen = pairwise_distances_chunked(
         sub_mat, 
@@ -417,6 +419,13 @@ def calc_sparse_matrix(meta_withoutDUPS, args):
     )
 
     neigh = list(chain.from_iterable(gen))
+
+
+
+    # EXPORT RESULTS FOR CACHING
+    d = {'sub_mat':sub_mat, 'neigh':neigh, 'max_dist': args.max_dist}
+    with open(args.output_cache, 'wb') as f:
+        cPickle.dump(d, f)
 
 
     print("Create graph and recover connected components")
@@ -458,6 +467,8 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("--input-file", help="Input file")
+    parser.add_argument("--input-cache", help="Input cached pickle file from previous run")
+    parser.add_argument("--output-cache", help="Path to Output cached pickle file")
     parser.add_argument("--id-col", help="Column with the sequence identifier")
     parser.add_argument(
         "--clust-col", help="Metadata column to cluster (default = 'dna_profile')"
@@ -517,6 +528,8 @@ def main():
 
     parser.set_defaults(
         input_file="../input/covsonar/rki-2021-05-19-minimal.tsv.gz",
+        input_cache="",
+        output_cache="cached_output.pickle",
         id_col="accession",
         clust_col="dna_profile",
     )
@@ -552,6 +565,8 @@ def main():
     print(f"  reference length (bp) = {args.reference_length}")
     print(f"  skip deletions = {args.skip_del}")
     print(f"  skip insertions = {args.skip_ins}")
+    print(f"  Input cache file = {args.input_cache}")
+    print(f"  Output cache file = {args.output_cache}")
     
     if os.path.isfile(args.input_file):
       meta = pd.read_table(
