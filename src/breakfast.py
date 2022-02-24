@@ -332,19 +332,16 @@ def remove_indels(meta, args):
             new_sub.append(' '.join(new_d))
         meta[args.clust_col] = new_sub
         return meta
-    
 
-def calc_sparse_matrix(meta_withoutDUPS, args):
-    print("Convert list of substitutions into a sparse matrix")
+
+def construct_sub_mat(meta, args):
     insertion = re.compile(".*[A-Z][A-Z]$")
-    subs = meta_withoutDUPS[args.clust_col]
+    subs = meta[args.clust_col]
     indptr = [0]
     indices = []
     data = []
-    #mutation_len = []
     vocabulary = {}
     for subt in subs:
-        #mutation_counter = 0
         if isinstance(subt, float):
             d = []
         else:
@@ -374,42 +371,74 @@ def calc_sparse_matrix(meta_withoutDUPS, args):
                         and (pos >= (args.reference_length - args.trim_end))
                     ):
                         continue
-            #mutation_counter += 1
             index = vocabulary.setdefault(term, len(vocabulary))
             indices.append(index)
             data.append(1)
         indptr.append(len(indices))
-        #mutation_len.append(mutation_counter)
-    sub_mat = csr_matrix((data, indices, indptr), dtype=int)
-    num_nz = sub_mat.getnnz()
-    print(
-        f"Number of non-zero matrix entries: {num_nz} ({100 * (num_nz/(sub_mat.shape[0] * sub_mat.shape[1])):.2f}%)"
-    )
+    sub_mat = csr_matrix((data, indices, indptr), dtype=int) 
+    return sub_mat 
 
-    print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
-
-    def _reduce_func(D_chunk, start):
-        neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
-        return neigh
-
+def calc_sparse_matrix(meta_withoutDUPS, args):
+    
     # IMPORT RESULT FROM PREVIOUS RUN 
-    if os.path.isfile(args.input_cache):
+    if args.input_cache != None:
         with open(args.input_cache, 'rb') as f:
+            print("Import distance matrix from pickle file")
             loaded_obj = cPickle.load(f)
-            cached_sub_mat = loaded_obj['sub_mat']
             cached_meta = loaded_obj['meta']
+
+
+            #sort according to cached file
+            meta_withoutDUPS_new = meta_withoutDUPS.set_index('accession')
+            meta_withoutDUPS_new = meta_withoutDUPS_new.reindex(index=cached_meta['accession'])
+            meta_withoutDUPS_new = meta_withoutDUPS_new.reset_index()
+
+            #TODO: Compare mutation profile or hashed mutation profile
+            #print("")
+            print(len(meta_withoutDUPS_new))
+
+            
+            test = pd.concat([meta_withoutDUPS_new,meta_withoutDUPS]).drop_duplicates(keep=False)
+            test_idx = list(test.index.values)
+
+            
+            meta_withoutDUPS = pd.concat([meta_withoutDUPS_new, test])
+
+
+            # TODO Check how many sequences are new, how many changed etc. 
+            # TODO Add print statement for that 
+
+            # TODO: ONE needs to make sure the mutation profile (=columns) are identical between 
+
+            sub_mat = construct_sub_mat(meta_withoutDUPS, args)
+            select_ind = np.array(test_idx)
+            sub_mat_new = sub_mat[select_ind,:]
+
             # TODO: Check if cached_meta same as previous meta 
             # ELSE recalculate sub_mat
 
+            # X and Y need to have same .shape[1] = same number of mutation profiles 
+            #Y complete sub_mat
+            #X part of sub_mat  
+
+            def _reduce_func(D_chunk, start):
+                neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
+                return neigh
+
             gen = pairwise_distances_chunked(
-            X=cached_sub_mat,
+            X=sub_mat_new,
             Y=sub_mat,
             reduce_func=_reduce_func, 
-            metric="manhattan_breakfast", 
+            metric="manhattan", 
             n_jobs=1,
-            #max_dist=args.max_dist,
-            #mutation_length_list=mutation_len
-        )
+            )
+            
+            neigh_new = list(chain.from_iterable(gen))
+
+            neigh_cached = loaded_obj['neigh']
+            print(neigh_cached+neigh_new)
+
+            neigh = neigh_cached + neigh_new
 
             # TODO later: Check if sequences got deleted
             # TODO later: Check if sequneces got modified
@@ -417,23 +446,30 @@ def calc_sparse_matrix(meta_withoutDUPS, args):
             # TODO: Check max-dist parameter and abort in case they are not equal 
     else:
         print("Cached file from previous run not available")
+        sub_mat = construct_sub_mat(meta_withoutDUPS, args)
+
+        def _reduce_func(D_chunk, start):
+                neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
+                return neigh
 
         gen = pairwise_distances_chunked(
             sub_mat, 
             reduce_func=_reduce_func, 
-            metric="manhattan_breakfast", 
+            metric="manhattan", 
             n_jobs=1,
-            #max_dist=args.max_dist,
-            #mutation_length_list=mutation_len
         )
-
-    neigh = list(chain.from_iterable(gen))
+        neigh = list(chain.from_iterable(gen))
+        print(neigh)
 
 
     # EXPORT RESULTS FOR CACHING
-    d = {'sub_mat': sub_mat, 'neigh':neigh, 'max_dist': args.max_dist, 'version': VERSION, 'meta':meta_withoutDUPS}
-    with open(args.output_cache, 'wb') as f:
-        cPickle.dump(d, f)
+    # TODO: Only export list of seqeunces and hashed sequence information!
+    # TODO: Do not export complete dataframe with all mutataion profiles 
+    if args.output_cache != None:
+        print("Export distance matrix as pickle file")
+        d = {'sub_mat': sub_mat, 'max_dist': args.max_dist, 'version': VERSION, 'meta': meta_withoutDUPS, 'neigh' : neigh}
+        with open(args.output_cache, 'wb') as f:
+            cPickle.dump(d, f)
 
 
     print("Create graph and recover connected components")
@@ -475,7 +511,7 @@ def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument("--input-file", help="Input file")
+    parser.add_argument("--input-file", help="Input file", required=True)
     parser.add_argument("--input-cache", help="Input cached pickle file from previous run")
     parser.add_argument("--output-cache", help="Path to Output cached pickle file")
     parser.add_argument("--id-col", help="Column with the sequence identifier")
@@ -537,8 +573,8 @@ def main():
 
     parser.set_defaults(
         input_file="../input/covsonar/rki-2021-05-19-minimal.tsv.gz",
-        input_cache="",
-        output_cache="cached_output.pickle",
+        input_cache=None,
+        output_cache=None,
         id_col="accession",
         clust_col="dna_profile",
     )
@@ -597,7 +633,7 @@ def main():
     print(f"Number of duplicates: {meta[args.clust_col].duplicated().sum()}")
 
     # Group genomes with identical sequences together
-    meta_withoutDUPS = meta.groupby(args.clust_col,as_index=False, sort=False).agg({args.id_col:lambda x : list(x),args.clust_col:'first'})
+    meta_withoutDUPS = meta.groupby(args.clust_col,as_index=False, sort=False).agg({args.id_col:lambda x : tuple(x),args.clust_col:'first'})
 
     print(f"Number of sequences without duplicates: {meta_withoutDUPS.shape[0]}")
 
