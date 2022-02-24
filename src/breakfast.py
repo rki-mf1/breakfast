@@ -378,7 +378,7 @@ def construct_sub_mat(meta, args):
     sub_mat = csr_matrix((data, indices, indptr), dtype=int) 
     return sub_mat 
 
-def calc_sparse_matrix(meta_withoutDUPS, args):
+def calc_sparse_matrix(meta, args):
     
     # IMPORT RESULT FROM PREVIOUS RUN 
     if args.input_cache != None:
@@ -388,45 +388,36 @@ def calc_sparse_matrix(meta_withoutDUPS, args):
             cached_meta = loaded_obj['meta']
 
 
-            #sort according to cached file
-            meta_withoutDUPS_new = meta_withoutDUPS.set_index('accession')
-            meta_withoutDUPS_new = meta_withoutDUPS_new.reindex(index=cached_meta['accession'])
-            meta_withoutDUPS_new = meta_withoutDUPS_new.reset_index()
+            # sort according to cached meta (remove all sequences which are not part of cached meta )
+            meta_sorted = meta.set_index(args.id_col)
+            meta_sorted = meta_sorted.reindex(index=cached_meta[args.id_col])
+            meta_sorted = meta_sorted.reset_index()
 
-            #TODO: Compare mutation profile or hashed mutation profile
-            #print("")
-            print(len(meta_withoutDUPS_new))
+            #print(f"Total number of unique sequences: {len(meta)}")
+            print(f"Number of unique sequences of cached results: {len(meta_sorted)}")
 
-            
-            test = pd.concat([meta_withoutDUPS_new,meta_withoutDUPS]).drop_duplicates(keep=False)
-            test_idx = list(test.index.values)
+            #TODO: Add check if mutation profile compared to yesterday
 
-            
-            meta_withoutDUPS = pd.concat([meta_withoutDUPS_new, test])
+            # Get sequences which are not part of cached meta
+            meta_NewSeqs = pd.concat([meta_sorted, meta]).drop_duplicates(keep=False)
+            meta_NewSeqs_idx = list(meta_NewSeqs.index.values)
 
+            print(f"Number of new unique sequences compared to cached results: {len(meta_NewSeqs)}")
 
-            # TODO Check how many sequences are new, how many changed etc. 
-            # TODO Add print statement for that 
+            # append sequences which where removed
+            meta_withoutDUPS = pd.concat([meta_sorted, meta_NewSeqs])
 
-            # TODO: ONE needs to make sure the mutation profile (=columns) are identical between 
-
-            sub_mat = construct_sub_mat(meta_withoutDUPS, args)
-            select_ind = np.array(test_idx)
-            sub_mat_new = sub_mat[select_ind,:]
-
-            # TODO: Check if cached_meta same as previous meta 
-            # ELSE recalculate sub_mat
-
-            # X and Y need to have same .shape[1] = same number of mutation profiles 
-            #Y complete sub_mat
-            #X part of sub_mat  
+            # construct sub_mat of complete dataset and sub_mat of only new sequences compared to cached meta
+            sub_mat = construct_sub_mat(meta, args)
+            select_ind = np.array(meta_NewSeqs_idx)
+            sub_mat_newSeqs = sub_mat[select_ind,:]
 
             def _reduce_func(D_chunk, start):
                 neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
                 return neigh
 
             gen = pairwise_distances_chunked(
-            X=sub_mat_new,
+            X=sub_mat_newSeqs,
             Y=sub_mat,
             reduce_func=_reduce_func, 
             metric="manhattan", 
@@ -434,19 +425,15 @@ def calc_sparse_matrix(meta_withoutDUPS, args):
             )
             
             neigh_new = list(chain.from_iterable(gen))
-
             neigh_cached = loaded_obj['neigh']
-            print(neigh_cached+neigh_new)
 
             neigh = neigh_cached + neigh_new
 
-            # TODO later: Check if sequences got deleted
-            # TODO later: Check if sequneces got modified
             # TODO later: Compare version and print Warning if not equal
-            # TODO: Check max-dist parameter and abort in case they are not equal 
+            # TODO: Check max-dist parameter and abort in case they are not equal
     else:
         print("Cached file from previous run not available")
-        sub_mat = construct_sub_mat(meta_withoutDUPS, args)
+        sub_mat = construct_sub_mat(meta, args)
 
         def _reduce_func(D_chunk, start):
                 neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
@@ -476,35 +463,34 @@ def calc_sparse_matrix(meta_withoutDUPS, args):
     G = _to_graph(neigh)
     clusters = connected_components(G)
 
-
     print("Save clusters")
-    meta_withoutDUPS['cluster_id'] = pd.NA
+    meta['cluster_id'] = pd.NA
     cluster_id = 0
-    accession_list = meta_withoutDUPS[args.id_col].tolist()
+    accession_list = meta[args.id_col].tolist()
     for clust in clusters:
         clust_len = 0
         for set_clust in clust:
           clust_len += len(accession_list[set_clust])
         if clust_len >= args.min_cluster_size:
           cluster_id += 1
-          meta_withoutDUPS.iloc[list(clust), meta_withoutDUPS.columns.get_loc("cluster_id")] = cluster_id
+          meta.iloc[list(clust), meta.columns.get_loc("cluster_id")] = cluster_id
     print(f"Number of clusters found: {cluster_id}")
-    return meta_withoutDUPS
+    return meta
 
 # TODO: Caching results for max-dist 0 
-def calc_without_sparse_matrix(meta_withoutDUPS, args):
+def calc_without_sparse_matrix(meta, args):
     print("Skip sparse matrix calculation since max-dist = 0")
-    clusters = list(range(0,len(meta_withoutDUPS)))
-    accession_list = meta_withoutDUPS[args.id_col].tolist()
-    meta_withoutDUPS['cluster_id'] = pd.NA
+    clusters = list(range(0,len(meta)))
+    accession_list = meta[args.id_col].tolist()
+    meta['cluster_id'] = pd.NA
     cluster_id = 0
     for clust in clusters:
         clust_len = len(accession_list[clust])
         if clust_len >= args.min_cluster_size:
             cluster_id += 1
-            meta_withoutDUPS.iloc[clust, meta_withoutDUPS.columns.get_loc("cluster_id")] = cluster_id
+            meta.iloc[clust, meta.columns.get_loc("cluster_id")] = cluster_id
     print(f"Number of clusters found: {cluster_id}")
-    return meta_withoutDUPS
+    return meta
 
 
 def main():
