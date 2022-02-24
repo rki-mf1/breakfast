@@ -380,32 +380,65 @@ def construct_sub_mat(meta, args):
 
 def calc_sparse_matrix(meta, args):
     
-    # IMPORT RESULT FROM PREVIOUS RUN 
-    if args.input_cache != None:
+    # IMPORT RESULT FROM PREVIOUS RUN
+    try:
         with open(args.input_cache, 'rb') as f:
             print("Import distance matrix from pickle file")
             loaded_obj = cPickle.load(f)
-            cached_meta = loaded_obj['meta']
+            max_dist_cached = loaded_obj['max_dist']
+
+            if args.max_dist != max_dist_cached:
+                print(f"WARNING: Cached results were created using a differnt max-dist paramter")
+                print(f"Current max-dist parameter: {args.max_dist} \n Cached max-dist parameter: {max_dist_cached}")
+                raise UnboundLocalError()
+
+            version_cached = loaded_obj['version']
+            if version_cached != VERSION:
+                print(f"WARNING: Cached results were created using breakfast version {version_cached}")
+
+            cached_IDs = loaded_obj['IDs']
+
+            
+
+            # compare cached IDs and current meta file to check if sequences have been deleted
+            temp1 = cached_IDs
+            temp2 = meta['accession'].tolist()
+            s = set(temp2)
+            temp3 = [x for x in temp1 if x in s]
 
 
-            # sort according to cached meta (remove all sequences which are not part of cached meta )
+            if len(temp1)-len(temp3) > 0:
+                print(f"{len(temp1)-len(temp3)} deleted sequence(s)")
+                raise UnboundLocalError()
+                #TODO if sequences got deleted, get the index from cache results and remove them from all arrays in neigh
+
+            # TODO: compare seqhashes
+            '''seqhash_cached = loaded_obj['seqhash']
+            seq_hash = []
+            for i in meta[args.clust_col].tolist():
+                seq_hash.append(hash(i))'''
+
+
+            # sort according to cached meta (remove all sequences which are not part of cached meta)
             meta_sorted = meta.set_index(args.id_col)
-            meta_sorted = meta_sorted.reindex(index=cached_meta[args.id_col])
+            meta_sorted = meta_sorted.reindex(index=temp3)
             meta_sorted = meta_sorted.reset_index()
 
-            #print(f"Total number of unique sequences: {len(meta)}")
             print(f"Number of unique sequences of cached results: {len(meta_sorted)}")
 
             #TODO: Add check if mutation profile compared to yesterday
+            # Do so by just going through list of meta_sorted
 
             # Get sequences which are not part of cached meta
             meta_NewSeqs = pd.concat([meta_sorted, meta]).drop_duplicates(keep=False)
             meta_NewSeqs_idx = list(meta_NewSeqs.index.values)
 
+            #print((meta_NewSeqs))
+
             print(f"Number of new unique sequences compared to cached results: {len(meta_NewSeqs)}")
 
             # append sequences which where removed
-            meta_withoutDUPS = pd.concat([meta_sorted, meta_NewSeqs])
+            meta = pd.concat([meta_sorted, meta_NewSeqs])
 
             # construct sub_mat of complete dataset and sub_mat of only new sequences compared to cached meta
             sub_mat = construct_sub_mat(meta, args)
@@ -426,12 +459,9 @@ def calc_sparse_matrix(meta, args):
             
             neigh_new = list(chain.from_iterable(gen))
             neigh_cached = loaded_obj['neigh']
+            neigh = neigh_cached + neigh_new 
 
-            neigh = neigh_cached + neigh_new
-
-            # TODO later: Compare version and print Warning if not equal
-            # TODO: Check max-dist parameter and abort in case they are not equal
-    else:
+    except (UnboundLocalError, TypeError) as e:
         print("Cached file from previous run not available")
         sub_mat = construct_sub_mat(meta, args)
 
@@ -446,18 +476,19 @@ def calc_sparse_matrix(meta, args):
             n_jobs=1,
         )
         neigh = list(chain.from_iterable(gen))
-        print(neigh)
+        
 
 
     # EXPORT RESULTS FOR CACHING
-    # TODO: Only export list of seqeunces and hashed sequence information!
-    # TODO: Do not export complete dataframe with all mutataion profiles 
     if args.output_cache != None:
-        print("Export distance matrix as pickle file")
-        d = {'sub_mat': sub_mat, 'max_dist': args.max_dist, 'version': VERSION, 'meta': meta_withoutDUPS, 'neigh' : neigh}
+        print("Export results as pickle")
+        seq_hash = []
+        for i in meta[args.clust_col].tolist():
+            seq_hash.append(hash(i))
+        #print(seq_hash)
+        d = {'max_dist': args.max_dist, 'version' : VERSION, 'neigh' : neigh, 'IDs': meta[args.id_col].tolist(), 'seqhash': seq_hash}
         with open(args.output_cache, 'wb') as f:
             cPickle.dump(d, f)
-
 
     print("Create graph and recover connected components")
     G = _to_graph(neigh)
@@ -621,7 +652,7 @@ def main():
     # Group genomes with identical sequences together
     meta_withoutDUPS = meta.groupby(args.clust_col,as_index=False, sort=False).agg({args.id_col:lambda x : tuple(x),args.clust_col:'first'})
 
-    print(f"Number of sequences without duplicates: {meta_withoutDUPS.shape[0]}")
+    print(f"Number of unique sequences: {meta_withoutDUPS.shape[0]}")
 
     if args.max_dist == 0:
         meta_withoutDUPS = calc_without_sparse_matrix(meta_withoutDUPS, args)       
