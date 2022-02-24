@@ -13,6 +13,7 @@ import numpy as np
 import os
 import re
 import _pickle as cPickle
+import hashlib
 
 
 import networkx
@@ -379,11 +380,10 @@ def construct_sub_mat(meta, args):
     return sub_mat 
 
 def calc_sparse_matrix(meta, args):
-    
     # IMPORT RESULT FROM PREVIOUS RUN
     try:
         with open(args.input_cache, 'rb') as f:
-            print("Import distance matrix from pickle file")
+            print("Import from pickle file")
             loaded_obj = cPickle.load(f)
             max_dist_cached = loaded_obj['max_dist']
 
@@ -396,28 +396,40 @@ def calc_sparse_matrix(meta, args):
             if version_cached != VERSION:
                 print(f"WARNING: Cached results were created using breakfast version {version_cached}")
 
-            cached_IDs = loaded_obj['IDs']
-
             
+            
+            # compare cached IDs and current IDs to check if sequences have been deleted
+            cached_ID = loaded_obj['ID']
+            s = set(meta[args.id_col].tolist())
 
-            # compare cached IDs and current meta file to check if sequences have been deleted
-            temp1 = cached_IDs
-            temp2 = meta['accession'].tolist()
-            s = set(temp2)
-            temp3 = [x for x in temp1 if x in s]
+            temp3 = []
+            temp3_idx = []
+            for idx, x in enumerate(cached_ID):
+                if x in s:
+                    temp3.append(x)
+                    temp3_idx.append(idx)
 
+            '''# check if sequences got modified
+            temp4 = []
+            seqs_cached = loaded_obj['seqs']
+            seqs = meta[args.clust_col][temp3_idx].tolist()
 
-            if len(temp1)-len(temp3) > 0:
-                print(f"{len(temp1)-len(temp3)} deleted sequence(s)")
+            for idx, seq in zip(temp3_idx, seqs):
+                print(seq)
+                print(seqs_cached)
+                if seq == seqs_cached[idx]:
+                    temp4.append(seq)
+
+            if len(temp3)-len(cached_ID) > 0:
+                print(f"{len(temp3)-len(cached_ID)} deleted sequence(s)")
                 raise UnboundLocalError()
                 #TODO if sequences got deleted, get the index from cache results and remove them from all arrays in neigh
 
-            # TODO: compare seqhashes
-            '''seqhash_cached = loaded_obj['seqhash']
-            seq_hash = []
-            for i in meta[args.clust_col].tolist():
-                seq_hash.append(hash(i))'''
-
+            if len(temp4)-len(temp3) > 0:
+                print(f"{len(temp4)-len(temp3)} modified sequence(s)")
+                raise UnboundLocalError()
+                 #TODO if sequences got modified, get the index from cache results and remove them from all arrays in neigh
+            '''
 
             # sort according to cached meta (remove all sequences which are not part of cached meta)
             meta_sorted = meta.set_index(args.id_col)
@@ -426,14 +438,9 @@ def calc_sparse_matrix(meta, args):
 
             print(f"Number of unique sequences of cached results: {len(meta_sorted)}")
 
-            #TODO: Add check if mutation profile compared to yesterday
-            # Do so by just going through list of meta_sorted
-
             # Get sequences which are not part of cached meta
             meta_NewSeqs = pd.concat([meta_sorted, meta]).drop_duplicates(keep=False)
             meta_NewSeqs_idx = list(meta_NewSeqs.index.values)
-
-            #print((meta_NewSeqs))
 
             print(f"Number of new unique sequences compared to cached results: {len(meta_NewSeqs)}")
 
@@ -462,7 +469,7 @@ def calc_sparse_matrix(meta, args):
             neigh = neigh_cached + neigh_new 
 
     except (UnboundLocalError, TypeError) as e:
-        print("Cached file from previous run not available")
+        print("Cached results not available")
         sub_mat = construct_sub_mat(meta, args)
 
         def _reduce_func(D_chunk, start):
@@ -480,15 +487,13 @@ def calc_sparse_matrix(meta, args):
 
 
     # EXPORT RESULTS FOR CACHING
-    if args.output_cache != None:
+    try:
         print("Export results as pickle")
-        seq_hash = []
-        for i in meta[args.clust_col].tolist():
-            seq_hash.append(hash(i))
-        #print(seq_hash)
-        d = {'max_dist': args.max_dist, 'version' : VERSION, 'neigh' : neigh, 'IDs': meta[args.id_col].tolist(), 'seqhash': seq_hash}
+        d = {'max_dist': args.max_dist, 'version' : VERSION, 'neigh' : neigh, 'ID': meta[args.id_col].tolist(), 'seqs': meta[args.clust_col].tolist()}
         with open(args.output_cache, 'wb') as f:
             cPickle.dump(d, f)
+    except TypeError:
+        print("Export of pickle was not succesfull")
 
     print("Create graph and recover connected components")
     G = _to_graph(neigh)
