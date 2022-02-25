@@ -5,7 +5,6 @@ import argparse
 import sys
 from itertools import chain
 from scipy.sparse import csr_matrix
-
 from sklearn.metrics import pairwise_distances_chunked
 from sklearn.metrics import pairwise_distances
 import pandas as pd
@@ -13,260 +12,17 @@ import numpy as np
 import os
 import re
 import _pickle as cPickle
-import hashlib
+#import hashlib
 import gzip
 
 
 import networkx
 from networkx.algorithms.components.connected import connected_components
 
-
-from sklearn.metrics.pairwise import check_pairwise_arrays
-from scipy.sparse import issparse
-from scipy.spatial import distance
-from sklearn.metrics.pairwise import *
-from sklearn.metrics.pairwise import _check_chunk_size, _precompute_metric_params, _return_float_dtype
-from sklearn.utils.validation import _num_samples
-from setuptools import setup
-from Cython.Build import cythonize
-
-import pyximport
-pyximport.install(setup_args={"script_args" : ["--verbose"]})
-
-from sklearn.metrics._pairwise_fast import _sparse_manhattan
-#from _pairwise_fast import _sparse_manhattan
-import time
-start_time = time.time()
+#import time
+#start_time = time.time()
 
 
-def manhattan_distances_breakfast(X, Y=None, *, sum_over_features=True):
-    X, Y = check_pairwise_arrays(X, Y)
-    if issparse(X) or issparse(Y):
-        if not sum_over_features:
-            raise TypeError(
-                "sum_over_features=%r not supported for sparse matrices"
-                % sum_over_features
-            )
-
-        X = csr_matrix(X, copy=False)
-        Y = csr_matrix(Y, copy=False)
-        X.sum_duplicates()  # this also sorts indices in-place
-        Y.sum_duplicates()
-        D = np.zeros((X.shape[0], Y.shape[0]))
-        # TODO: Set args.max_dist and list of mutation lengths as parameters
-        #mutation_length_list = [float(i) for i in mutation_length_list]
-        #mutation_length_array = np.array(mutation_length_list)
-        #max_dist = float(max_dist)
-        #print(mutation_length_array)
-        #print(max_dist)
-        #print(X.indptr)
-        #print(len(X.indptr))
-        #print(len(mutation_length_array))
-        #print(X.shape[0], Y.shape[0])
-        #print(D.shape[0], D.shape[1])
-        #print(X.shape[1], Y.shape[1])
-
-        print("Before calling sparse_manhatten --- %s seconds ---" % (time.time() - start_time))
-        _sparse_manhattan(X.data, X.indices, X.indptr, Y.data, Y.indices, Y.indptr, D)
-        print("After calling sparse_manhatten--- %s seconds ---" % (time.time() - start_time))
-        #_sparse_manhattan_breakfast(X.data, X.indices, X.indptr, Y.data, Y.indices, Y.indptr, D, max_dist, mutation_length_array)
-        return D
-
-    if sum_over_features:
-        return distance.cdist(X, Y, "cityblock")
-
-    D = X[:, np.newaxis, :] - Y[np.newaxis, :, :]
-    D = np.abs(D, D)
-    return D.reshape((-1, X.shape[1]))
-
-PAIRWISE_DISTANCE_FUNCTIONS = {
-    # If updating this dictionary, update the doc in both distance_metrics()
-    # and also in pairwise_distances()!
-    "cityblock": manhattan_distances,
-    "cosine": cosine_distances,
-    "euclidean": euclidean_distances,
-    "haversine": haversine_distances,
-    "l2": euclidean_distances,
-    "l1": manhattan_distances,
-    "manhattan": manhattan_distances,
-    "manhattan_breakfast": manhattan_distances_breakfast,
-    "precomputed": None,  # HACK: precomputed is always allowed, never called
-    "nan_euclidean": nan_euclidean_distances,
-}
-
-_VALID_METRICS = [
-    "manhattan_breakfast",
-    "euclidean",
-    "l2",
-    "l1",
-    "manhattan",
-    "cityblock",
-    "braycurtis",
-    "canberra",
-    "chebyshev",
-    "correlation",
-    "cosine",
-    "dice",
-    "hamming",
-    "jaccard",
-    "kulsinski",
-    "mahalanobis",
-    "matching",
-    "minkowski",
-    "rogerstanimoto",
-    "russellrao",
-    "seuclidean",
-    "sokalmichener",
-    "sokalsneath",
-    "sqeuclidean",
-    "yule",
-    "wminkowski",
-    "nan_euclidean",
-    "haversine",
-]
-
-def pairwise_distances_chunked(
-    X,
-    Y=None,
-    *,
-    reduce_func=None,
-    metric="euclidean",
-    n_jobs=None,
-    working_memory=None,
-    **kwds,
-):
-    n_samples_X = _num_samples(X)
-    if metric == "precomputed":
-        slices = (slice(0, n_samples_X),)
-    else:
-        if Y is None:
-            Y = X
-        # We get as many rows as possible within our working_memory budget to
-        # store len(Y) distances in each row of output.
-        #
-        # Note:
-        #  - this will get at least 1 row, even if 1 row of distances will
-        #    exceed working_memory.
-        #  - this does not account for any temporary memory usage while
-        #    calculating distances (e.g. difference of vectors in manhattan
-        #    distance.
-        chunk_n_rows = get_chunk_n_rows(
-            row_bytes=8 * _num_samples(Y),
-            max_n_rows=n_samples_X,
-            working_memory=working_memory,
-        )
-        slices = gen_batches(n_samples_X, chunk_n_rows)
-
-    # precompute data-derived metric params
-    params = _precompute_metric_params(X, Y, metric=metric, **kwds)
-    kwds.update(**params)
-
-    #TODO: Slice mutation_length_list ....
-    for sl in slices:
-        #print(sl)
-        if sl.start == 0 and sl.stop == n_samples_X:
-            X_chunk = X  # enable optimised paths for X is Y
-            #TODO:
-            #mutation_length_list_chunk = mutation_length_list
-        else:
-            X_chunk = X[sl]
-            #TODO: 
-            #mutation_length_list_chunk = mutation_length_list[sl]
-        #print(X_chunk, mutation_length_list_chunk)
-        D_chunk = pairwise_distances(X_chunk, Y, metric=metric, n_jobs=n_jobs, **kwds)
-        #D_chunk = pairwise_distances(X_chunk, max_dist, mutation_length_list, Y, metric=metric, n_jobs=n_jobs, **kwds)
-        if (X is Y or Y is None) and PAIRWISE_DISTANCE_FUNCTIONS.get(
-            metric, None
-        ) is euclidean_distances:
-            # zeroing diagonal, taking care of aliases of "euclidean",
-            # i.e. "l2"
-            D_chunk.flat[sl.start :: _num_samples(X) + 1] = 0
-        if reduce_func is not None:
-            chunk_size = D_chunk.shape[0]
-            D_chunk = reduce_func(D_chunk, sl.start)
-            _check_chunk_size(D_chunk, chunk_size)
-        yield D_chunk
-
-def pairwise_distances(
-    X, Y=None, metric="euclidean", *, n_jobs=None, force_all_finite=True, **kwds
-):
-    if (
-        metric not in _VALID_METRICS
-        and not callable(metric)
-        and metric != "precomputed"
-    ):
-        raise ValueError(
-            "Unknown metric %s. Valid metrics are %s, or 'precomputed', or a callable"
-            % (metric, _VALID_METRICS)
-        )
-
-    if metric == "precomputed":
-        X, _ = check_pairwise_arrays(
-            X, Y, precomputed=True, force_all_finite=force_all_finite
-        )
-
-        whom = (
-            "`pairwise_distances`. Precomputed distance "
-            " need to have non-negative values."
-        )
-        check_non_negative(X, whom=whom)
-        return X
-    elif metric in PAIRWISE_DISTANCE_FUNCTIONS:
-        func = PAIRWISE_DISTANCE_FUNCTIONS[metric]
-    elif callable(metric):
-        func = partial(
-            _pairwise_callable, metric=metric, force_all_finite=force_all_finite, **kwds
-        )
-    else:
-        if issparse(X) or issparse(Y):
-            raise TypeError("scipy distance metrics do not support sparse matrices.")
-
-        dtype = bool if metric in PAIRWISE_BOOLEAN_FUNCTIONS else None
-
-        if dtype == bool and (X.dtype != bool or (Y is not None and Y.dtype != bool)):
-            msg = "Data was converted to boolean for metric %s" % metric
-            warnings.warn(msg, DataConversionWarning)
-
-        X, Y = check_pairwise_arrays(
-            X, Y, dtype=dtype, force_all_finite=force_all_finite
-        )
-
-        # precompute data-derived metric params
-        params = _precompute_metric_params(X, Y, metric=metric, **kwds)
-        kwds.update(**params)
-
-        if effective_n_jobs(n_jobs) == 1 and X is Y:
-            return distance.squareform(distance.pdist(X, metric=metric, **kwds))
-        func = partial(distance.cdist, metric=metric, **kwds)
-
-    return _parallel_pairwise(X, Y, func, n_jobs, **kwds)
-
-def _parallel_pairwise(X, Y, func, n_jobs, **kwds):
-    """Break the pairwise matrix in n_jobs even slices
-    and compute them in parallel."""
-
-    if Y is None:
-        Y = X
-    X, Y, dtype = _return_float_dtype(X, Y)
-
-    if effective_n_jobs(n_jobs) == 1:
-        #TODO: Add parameters here 
-        return func(X, Y, **kwds)
-
-    # enforce a threading backend to prevent data communication overhead
-    fd = delayed(_dist_wrapper)
-    ret = np.empty((X.shape[0], Y.shape[0]), dtype=dtype, order="F")
-    Parallel(backend="threading", n_jobs=n_jobs)(
-        fd(func, ret, s, X, Y[s], **kwds)
-        for s in gen_even_slices(_num_samples(Y), effective_n_jobs(n_jobs))
-    )
-
-    if (X is Y or Y is None) and func is euclidean_distances:
-        # zeroing diagonal for euclidean norm.
-        # TODO: do it also for other norms.
-        np.fill_diagonal(ret, 0)
-
-    return ret
 
 
 
@@ -381,7 +137,6 @@ def construct_sub_mat(meta, args):
 
 def calc_sparse_matrix(meta, args):
     # IMPORT RESULT FROM PREVIOUS RUN
-    #TODO: Use gzip open
     try:
         with gzip.open(args.input_cache, 'rb') as f:
             print("Import from pickle file")
@@ -397,8 +152,6 @@ def calc_sparse_matrix(meta, args):
             if version_cached != VERSION:
                 print(f"WARNING: Cached results were created using breakfast version {version_cached}")
 
-            
-            
             # compare cached IDs and current IDs to check if sequences have been deleted
             cached_ID = loaded_obj['ID']
             s = set(meta[args.id_col].tolist())
@@ -481,19 +234,18 @@ def calc_sparse_matrix(meta, args):
         gen = pairwise_distances_chunked(
             sub_mat, 
             reduce_func=_reduce_func, 
-            metric="manhattan_breakfast", 
+            metric="manhattan", 
             n_jobs=1,
         )
         neigh = list(chain.from_iterable(gen))
         
 
-    # TODO export pickle as gzipped file to reduce size
     # EXPORT RESULTS FOR CACHING
     try:
         print("Export results as pickle")
         d = {'max_dist': args.max_dist, 'version' : VERSION, 'neigh' : neigh, 'ID': meta[args.id_col].tolist(), 'seqs': meta[args.clust_col].tolist()}
         with gzip.open(args.output_cache, 'wb') as f:
-            cPickle.dump(d, f, 2) # add protocol 2, python > 2.3
+            cPickle.dump(d, f, 2) # protocol 2, python > 2.3
     except TypeError:
         print("Export of pickle was not succesfull")
 
