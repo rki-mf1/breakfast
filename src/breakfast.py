@@ -14,6 +14,7 @@ import os
 import re
 import _pickle as cPickle
 import hashlib
+import gzip
 
 
 import networkx
@@ -34,8 +35,8 @@ pyximport.install(setup_args={"script_args" : ["--verbose"]})
 
 from sklearn.metrics._pairwise_fast import _sparse_manhattan
 #from _pairwise_fast import _sparse_manhattan
-#import time
-#start_time = time.time()
+import time
+start_time = time.time()
 
 
 def manhattan_distances_breakfast(X, Y=None, *, sum_over_features=True):
@@ -65,9 +66,9 @@ def manhattan_distances_breakfast(X, Y=None, *, sum_over_features=True):
         #print(D.shape[0], D.shape[1])
         #print(X.shape[1], Y.shape[1])
 
-        #print("--- %s seconds ---" % (time.time() - start_time))
+        print("Before calling sparse_manhatten --- %s seconds ---" % (time.time() - start_time))
         _sparse_manhattan(X.data, X.indices, X.indptr, Y.data, Y.indices, Y.indptr, D)
-        #print("--- %s seconds ---" % (time.time() - start_time))
+        print("After calling sparse_manhatten--- %s seconds ---" % (time.time() - start_time))
         #_sparse_manhattan_breakfast(X.data, X.indices, X.indptr, Y.data, Y.indices, Y.indptr, D, max_dist, mutation_length_array)
         return D
 
@@ -251,7 +252,6 @@ def _parallel_pairwise(X, Y, func, n_jobs, **kwds):
     if effective_n_jobs(n_jobs) == 1:
         #TODO: Add parameters here 
         return func(X, Y, **kwds)
-        #return func(X, Y, **kwds)
 
     # enforce a threading backend to prevent data communication overhead
     fd = delayed(_dist_wrapper)
@@ -381,8 +381,9 @@ def construct_sub_mat(meta, args):
 
 def calc_sparse_matrix(meta, args):
     # IMPORT RESULT FROM PREVIOUS RUN
+    #TODO: Use gzip open
     try:
-        with open(args.input_cache, 'rb') as f:
+        with gzip.open(args.input_cache, 'rb') as f:
             print("Import from pickle file")
             loaded_obj = cPickle.load(f)
             max_dist_cached = loaded_obj['max_dist']
@@ -402,26 +403,27 @@ def calc_sparse_matrix(meta, args):
             cached_ID = loaded_obj['ID']
             s = set(meta[args.id_col].tolist())
 
+            #TODO: Check
             temp3 = []
             temp3_idx = []
             for idx, x in enumerate(cached_ID):
                 if x in s:
                     temp3.append(x)
                     temp3_idx.append(idx)
-
-            '''# check if sequences got modified
+            
+            
+            #check if sequences got modified
+            #TODO: Check 
             temp4 = []
             seqs_cached = loaded_obj['seqs']
             seqs = meta[args.clust_col][temp3_idx].tolist()
 
             for idx, seq in zip(temp3_idx, seqs):
-                print(seq)
-                print(seqs_cached)
                 if seq == seqs_cached[idx]:
                     temp4.append(seq)
 
-            if len(temp3)-len(cached_ID) > 0:
-                print(f"{len(temp3)-len(cached_ID)} deleted sequence(s)")
+            if len(cached_ID)-len(temp3) > 0:
+                print(f"{len(cached_ID)-len(temp3)} deleted sequence(s)")
                 raise UnboundLocalError()
                 #TODO if sequences got deleted, get the index from cache results and remove them from all arrays in neigh
 
@@ -429,7 +431,7 @@ def calc_sparse_matrix(meta, args):
                 print(f"{len(temp4)-len(temp3)} modified sequence(s)")
                 raise UnboundLocalError()
                  #TODO if sequences got modified, get the index from cache results and remove them from all arrays in neigh
-            '''
+            
 
             # sort according to cached meta (remove all sequences which are not part of cached meta)
             meta_sorted = meta.set_index(args.id_col)
@@ -479,19 +481,19 @@ def calc_sparse_matrix(meta, args):
         gen = pairwise_distances_chunked(
             sub_mat, 
             reduce_func=_reduce_func, 
-            metric="manhattan", 
+            metric="manhattan_breakfast", 
             n_jobs=1,
         )
         neigh = list(chain.from_iterable(gen))
         
 
-
+    # TODO export pickle as gzipped file to reduce size
     # EXPORT RESULTS FOR CACHING
     try:
         print("Export results as pickle")
         d = {'max_dist': args.max_dist, 'version' : VERSION, 'neigh' : neigh, 'ID': meta[args.id_col].tolist(), 'seqs': meta[args.clust_col].tolist()}
-        with open(args.output_cache, 'wb') as f:
-            cPickle.dump(d, f)
+        with gzip.open(args.output_cache, 'wb') as f:
+            cPickle.dump(d, f, 2) # add protocol 2, python > 2.3
     except TypeError:
         print("Export of pickle was not succesfull")
 
