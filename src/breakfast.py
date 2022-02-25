@@ -51,47 +51,48 @@ def _to_edges(l):
 
 
 def remove_indels(meta, args):
-        subs = meta[args.clust_col]
-        new_sub = []
-        insertion = re.compile(".*[A-Z][A-Z]$")
-        for subt in subs:
-            if isinstance(subt, float):
-                d = []
+    subs = meta[args.clust_col]
+    new_sub = []
+    insertion = re.compile(".*[A-Z][A-Z]$")
+    for subt in subs:
+        if isinstance(subt, float):
+            d = []
+        else:
+            if subt.find(args.sep2) != -1:
+                d = subt.split(args.sep2)
             else:
-                if subt.find(args.sep2) != -1:
-                    d = subt.split(args.sep2)
-                else:
-                    d = [subt]
-            new_d = []
-            for term in d:
-                if args.var_type == "dna":
-                    if term.startswith("del"):
-                        if args.skip_del:
-                            continue
-                        pos = int(term.split(":")[1])
-                        if ((args.trim_start is not None) and (pos <= args.trim_start)) or (
-                            (args.trim_end is not None)
-                            and (pos >= (args.reference_length - args.trim_end))
-                        ):
-                            continue
-                    elif args.skip_ins and insertion.match(term) is not None:
+                d = [subt]
+        new_d = []
+        for term in d:
+            if args.var_type == "dna":
+                if term.startswith("del"):
+                    if args.skip_del:
                         continue
-                    else:
-                        # Blindly remove reference and alt NT, leaving the position. Then
-                        # check if it is in the regions we want to trim away
-                        pos = int(term.translate(str.maketrans("", "", "ACGTN")))
-                        if ((args.trim_start is not None) and (pos <= args.trim_start)) or (
-                            (args.trim_end is not None)
-                            and (pos >= (args.reference_length - args.trim_end))
-                        ):
-                            continue
-                new_d.append(term)
-            new_sub.append(' '.join(new_d))
-        meta[args.clust_col] = new_sub
-        return meta
+                    pos = int(term.split(":")[1])
+                    if ((args.trim_start is not None) and (pos <= args.trim_start)) or (
+                        (args.trim_end is not None)
+                        and (pos >= (args.reference_length - args.trim_end))
+                    ):
+                        continue
+                elif args.skip_ins and insertion.match(term) is not None:
+                    continue
+                else:
+                    # Blindly remove reference and alt NT, leaving the position. Then
+                    # check if it is in the regions we want to trim away
+                    pos = int(term.translate(str.maketrans("", "", "ACGTN")))
+                    if ((args.trim_start is not None) and (pos <= args.trim_start)) or (
+                        (args.trim_end is not None)
+                        and (pos >= (args.reference_length - args.trim_end))
+                    ):
+                        continue
+            new_d.append(term)
+        new_sub.append(' '.join(new_d))
+    meta[args.clust_col] = new_sub
+    return meta
 
 
 def construct_sub_mat(meta, args):
+    print("Convert list of substitutions into a sparse matrix")
     insertion = re.compile(".*[A-Z][A-Z]$")
     subs = meta[args.clust_col]
     indptr = [0]
@@ -136,7 +137,7 @@ def construct_sub_mat(meta, args):
     return sub_mat 
 
 def calc_sparse_matrix(meta, args):
-    # IMPORT RESULT FROM PREVIOUS RUN
+    # IMPORT RESULTS FROM PREVIOUS RUN
     try:
         with gzip.open(args.input_cache, 'rb') as f:
             print("Import from pickle file")
@@ -153,49 +154,43 @@ def calc_sparse_matrix(meta, args):
                 print(f"WARNING: Cached results were created using breakfast version {version_cached}")
 
             # compare cached IDs and current IDs to check if sequences have been deleted
+            cached_seqs = loaded_obj['seqs']
             cached_ID = loaded_obj['ID']
-            s = set(meta[args.id_col].tolist())
+            current_ID = meta[args.id_col].tolist()
 
-            #TODO: Check
-            temp3 = []
-            temp3_idx = []
-            for idx, x in enumerate(cached_ID):
-                if x in s:
-                    temp3.append(x)
-                    temp3_idx.append(idx)
-            
-            
-            #check if sequences got modified
-            #TODO: Check 
-            temp4 = []
-            seqs_cached = loaded_obj['seqs']
-            seqs = meta[args.clust_col][temp3_idx].tolist()
+            # flatten list of IDs to compare cached and current IDs
+            # since we summarized IDs with identical sequences to sets
+            # e.g. [(ID1, ID2), (ID3)] -> {ID1, ID2, ID3}
+            flat_cached_ID = set(item for sublist in cached_ID for item in sublist)
+            flat_current_ID = set(item for sublist in current_ID for item in sublist)
 
-            for idx, seq in zip(temp3_idx, seqs):
-                if seq == seqs_cached[idx]:
-                    temp4.append(seq)
+            # get all IDs which are part of cached ID but not anymore of current ID
+            delSeqs = list(flat_cached_ID.difference(flat_current_ID))
+            newSeqs = list(flat_current_ID.difference(flat_cached_ID))
+            commonseqs = list(flat_cached_ID.intersection(flat_current_ID))
 
-            if len(cached_ID)-len(temp3) > 0:
-                print(f"{len(cached_ID)-len(temp3)} deleted sequence(s)")
+            '''print("ABHIER")
+            print(current_ID)
+            for i in '''
+
+            if (len(delSeqs)) > 0:
+                print(f"{len(delSeqs)} deleted sequence(s)")
+                print(f"The following sequences got deleted {delSeqs}")
                 raise UnboundLocalError()
                 #TODO if sequences got deleted, get the index from cache results and remove them from all arrays in neigh
 
-            if len(temp4)-len(temp3) > 0:
-                print(f"{len(temp4)-len(temp3)} modified sequence(s)")
-                raise UnboundLocalError()
-                 #TODO if sequences got modified, get the index from cache results and remove them from all arrays in neigh
+            
+            #TODO if sequences got modified, get the index from cache results and remove them from all arrays in neigh
             
 
-            # sort according to cached meta (remove all sequences which are not part of cached meta)
-            meta_sorted = meta.set_index(args.id_col)
-            meta_sorted = meta_sorted.reindex(index=temp3)
-            meta_sorted = meta_sorted.reset_index()
-
-            print(f"Number of unique sequences of cached results: {len(meta_sorted)}")
+            meta_cached = pd.DataFrame({args.id_col:cached_ID,  args.clust_col:cached_seqs})
+            print(f"Number of unique sequences of cached results: {len(meta_cached)}")
 
             # Get sequences which are not part of cached meta
-            meta_NewSeqs = pd.concat([meta_sorted, meta]).drop_duplicates(keep=False)
-            meta_NewSeqs_idx = list(meta_NewSeqs.index.values)
+            #meta_NewSeqs = pd.concat([meta_sorted, meta]).drop_duplicates(keep=False)
+            #meta_NewSeqs_idx = list(meta_NewSeqs.index.values)
+
+
 
             print(f"Number of new unique sequences compared to cached results: {len(meta_NewSeqs)}")
 
@@ -206,6 +201,8 @@ def calc_sparse_matrix(meta, args):
             sub_mat = construct_sub_mat(meta, args)
             select_ind = np.array(meta_NewSeqs_idx)
             sub_mat_newSeqs = sub_mat[select_ind,:]
+
+            print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
 
             def _reduce_func(D_chunk, start):
                 neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
@@ -218,19 +215,25 @@ def calc_sparse_matrix(meta, args):
             metric="manhattan", 
             n_jobs=1,
             )
-            
+
             neigh_new = list(chain.from_iterable(gen))
             neigh_cached = loaded_obj['neigh']
             neigh = neigh_cached + neigh_new 
 
+            print(neigh_cached)
+            print(neigh_new)
+
     except (UnboundLocalError, TypeError) as e:
-        print("Cached results not available")
+        print("Imported cached results are not available. Distance matrix of complete dataset will be calculated.")
+
         sub_mat = construct_sub_mat(meta, args)
+
+        print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
 
         def _reduce_func(D_chunk, start):
                 neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
                 return neigh
-
+        
         gen = pairwise_distances_chunked(
             sub_mat, 
             reduce_func=_reduce_func, 
@@ -407,10 +410,10 @@ def main():
         meta = remove_indels(meta, args)
 
     print(f"Number of duplicates: {meta[args.clust_col].duplicated().sum()}")
-
-    # Group genomes with identical sequences together
+    
+    # Group IDs with identical sequences together
     meta_withoutDUPS = meta.groupby(args.clust_col,as_index=False, sort=False).agg({args.id_col:lambda x : tuple(x),args.clust_col:'first'})
-
+    
     print(f"Number of unique sequences: {meta_withoutDUPS.shape[0]}")
 
     if args.max_dist == 0:
