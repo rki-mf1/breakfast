@@ -169,38 +169,57 @@ def calc_sparse_matrix(meta, args):
             newSeqs = list(flat_current_ID.difference(flat_cached_ID))
             commonseqs = list(flat_cached_ID.intersection(flat_current_ID))
 
-            '''print("ABHIER")
-            print(current_ID)
-            for i in '''
 
             if (len(delSeqs)) > 0:
                 print(f"{len(delSeqs)} deleted sequence(s)")
-                print(f"The following sequences got deleted {delSeqs}")
+                print(f"The following sequences got deleted {delSeqs}..")
                 raise UnboundLocalError()
                 #TODO if sequences got deleted, get the index from cache results and remove them from all arrays in neigh
 
-            
-            #TODO if sequences got modified, get the index from cache results and remove them from all arrays in neigh
-            
 
+            # TODO CHECK if sequences were modified
+            #if len(temp4)-len(temp3) > 0:
+            #    print(f"{len(temp4)-len(temp3)} modified sequence(s)")
+            #    raise UnboundLocalError()
+                 #TODO if sequences got modified, get the index from cache results and remove them from all arrays in neigh
+            
             meta_cached = pd.DataFrame({args.id_col:cached_ID,  args.clust_col:cached_seqs})
             print(f"Number of unique sequences of cached results: {len(meta_cached)}")
+            
+          
+            # What now can happen is the following
+            # cached IDs: [(ID1, ID2), (ID3)]
+            # new IDs: [(ID4), (ID5, ID6)]
+            # but f.e ID4 will get grouped with ID1, ID2 because they all have identical sequences
+            # current IDs: [(ID1, ID2, ID4), (ID3), (ID5, ID6)]
+            # so the following loop goes trough every set to check if the sequences are completly new
+            # or already known and gives back only new IDs
+            # in the example above that would be only (ID5, ID6) because the cluster_id of ID4 is already known
+            # same as (ID2, ID1)
+            newSeqs_grouped = []
+            newSeqs_grouped_idx = []
+            # go trough all current ID sets 
+            for groupedSeqs_idx, groupedSeqs in enumerate(current_ID):
+                counter_newSeq = 0
+                # are all set members new?
+                for Seq in groupedSeqs:
+                    if Seq in newSeqs:
+                        counter_newSeq +=1
+                # only append to list if all elements are new
+                if len(groupedSeqs) == counter_newSeq:
+                    newSeqs_grouped.append(groupedSeqs)
+                    newSeqs_grouped_idx.append(groupedSeqs_idx)
 
-            # Get sequences which are not part of cached meta
-            #meta_NewSeqs = pd.concat([meta_sorted, meta]).drop_duplicates(keep=False)
-            #meta_NewSeqs_idx = list(meta_NewSeqs.index.values)
+            meta_onlyNewSeqs = meta.iloc[newSeqs_grouped_idx]
 
 
+            print(f"Number of new unique sequences compared to cached results: {len(meta_onlyNewSeqs)}")
 
-            print(f"Number of new unique sequences compared to cached results: {len(meta_NewSeqs)}")
-
-            # append sequences which where removed
-            meta = pd.concat([meta_sorted, meta_NewSeqs])
 
             # construct sub_mat of complete dataset and sub_mat of only new sequences compared to cached meta
             sub_mat = construct_sub_mat(meta, args)
-            select_ind = np.array(meta_NewSeqs_idx)
-            sub_mat_newSeqs = sub_mat[select_ind,:]
+            select_ind = np.array(newSeqs_grouped_idx)
+            sub_mat_onlyNewSeqs = sub_mat[select_ind,:]
 
             print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
 
@@ -209,7 +228,7 @@ def calc_sparse_matrix(meta, args):
                 return neigh
 
             gen = pairwise_distances_chunked(
-            X=sub_mat_newSeqs,
+            X=sub_mat_onlyNewSeqs,
             Y=sub_mat,
             reduce_func=_reduce_func, 
             metric="manhattan", 
