@@ -170,23 +170,10 @@ def calc_sparse_matrix(meta, args):
             commonseqs = list(flat_cached_ID.intersection(flat_current_ID))
 
 
-            if (len(delSeqs)) > 0:
-                print(f"{len(delSeqs)} deleted sequence(s)")
-                print(f"The following sequences got deleted {delSeqs}..")
-                raise UnboundLocalError()
-                #TODO if sequences got deleted, get the index from cache results and remove them from all arrays in neigh
-
-
-            # TODO CHECK if sequences were modified
-            #if len(temp4)-len(temp3) > 0:
-            #    print(f"{len(temp4)-len(temp3)} modified sequence(s)")
-            #    raise UnboundLocalError()
-                 #TODO if sequences got modified, get the index from cache results and remove them from all arrays in neigh
-            
             meta_cached = pd.DataFrame({args.id_col:cached_ID,  args.clust_col:cached_seqs})
             print(f"Number of unique sequences of cached results: {len(meta_cached)}")
             
-          
+
             # What now can happen is the following
             # cached IDs: [(ID1, ID2), (ID3)]
             # new IDs: [(ID4), (ID5, ID6)]
@@ -198,23 +185,43 @@ def calc_sparse_matrix(meta, args):
             # same as (ID2, ID1)
             newSeqs_grouped = []
             newSeqs_grouped_idx = []
+            delSeqs_grouped_idx = []
             # go trough all current ID sets 
             for groupedSeqs_idx, groupedSeqs in enumerate(current_ID):
                 counter_newSeq = 0
                 # are all set members new?
                 for Seq in groupedSeqs:
                     if Seq in newSeqs:
-                        counter_newSeq +=1
+                        counter_newSeq += 1
                 # only append to list if all elements are new
                 if len(groupedSeqs) == counter_newSeq:
                     newSeqs_grouped.append(groupedSeqs)
                     newSeqs_grouped_idx.append(groupedSeqs_idx)
 
+
+
+
+            if (len(delSeqs)) > 0:
+                print(f"{len(delSeqs)} deleted sequence(s)")
+                print(f"The following sequences got deleted {delSeqs}")
+                for groupedSeqs_idx, groupedSeqs in enumerate(cached_ID):
+                    counter_delSeq = 0
+                    for Seq in groupedSeqs:
+                        if Seq in delSeqs:
+                            counter_delSeq += 1
+                    if len(groupedSeqs) == counter_delSeq:
+                        delSeqs_grouped_idx.append(groupedSeqs_idx)
+                meta_cached_wihoutdeletedSeqs = meta_cached.drop(delSeqs_grouped_idx)
+                list_of_old_indices = meta_cached_wihoutdeletedSeqs.index.tolist()
+                list_of_new_indices = []
+                for idx, i in enumerate(list_of_old_indices):
+                    list_of_new_indices.append(idx)
+                zip_iterator = zip(list_of_old_indices, list_of_new_indices)
+                indices_dict = dict(zip_iterator)           
+
             meta_onlyNewSeqs = meta.iloc[newSeqs_grouped_idx]
 
-
             print(f"Number of new unique sequences compared to cached results: {len(meta_onlyNewSeqs)}")
-
 
             # construct sub_mat of complete dataset and sub_mat of only new sequences compared to cached meta
             sub_mat = construct_sub_mat(meta, args)
@@ -234,13 +241,35 @@ def calc_sparse_matrix(meta, args):
             metric="manhattan", 
             n_jobs=1,
             )
-
+            # TODO: If sequences got deleted we would need to change neigh_new and neigh_cached
+            # Lets say we have as similar example as above
+            # cached IDs: [(ID1, ID2), (ID3), (ID3_dup)]
+            # new IDs: [(ID4), (ID5, ID6), ... ]
+            # deleted IDs: [(ID3_dup)]
+            # current IDs: [(ID1, ID2, ID4), (ID3), (ID5, ID6), ...]
+            # cached neigh: [(1), (2), (3)]
+            # new neigh: [(3), ...]
+            # because ID3 got deleted we need to adjust the index of cached neigh
+            # cached neigh [(1), (2)]
+            # new neigh [(3), ...]
             neigh_new = list(chain.from_iterable(gen))
             neigh_cached = loaded_obj['neigh']
-            neigh = neigh_cached + neigh_new 
 
-            print(neigh_cached)
-            print(neigh_new)
+            if (len(delSeqs)) > 0:
+                neigh_cached_updated = []
+                # go trough each cached neight array
+                for neigh_set in neigh_cached:
+                    neigh_set = list(neigh_set)
+                    # remove deleted indices 
+                    neigh_set = [e for e in neigh_set if e not in set(delSeqs_grouped_idx)]
+                    # change remaining indices
+                    neigh_set_updatedidx = [indices_dict[ind] for ind in neigh_set]
+                    neigh_cached_updated.append(np.array(neigh_set_updatedidx))
+                neigh = neigh_cached_updated + neigh_new
+            else:          
+                neigh = neigh_cached + neigh_new 
+
+            
 
     except (UnboundLocalError, TypeError) as e:
         print("Imported cached results are not available. Distance matrix of complete dataset will be calculated.")
@@ -274,7 +303,7 @@ def calc_sparse_matrix(meta, args):
     print("Create graph and recover connected components")
     G = _to_graph(neigh)
     clusters = connected_components(G)
-
+    
     print("Save clusters")
     meta['cluster_id'] = pd.NA
     cluster_id = 0
