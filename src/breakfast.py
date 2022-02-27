@@ -198,12 +198,21 @@ def calc_sparse_matrix(meta, args):
                     newSeqs_grouped.append(groupedSeqs)
                     newSeqs_grouped_idx.append(groupedSeqs_idx)
 
-
-
+            # TODO compare cached mutation profiles and current mutation profile (without new sequences)
+            # If sequence got changed, add the ID(s) to delSeqs. Treat it like a deleted sequence 
 
             if (len(delSeqs)) > 0:
                 print(f"{len(delSeqs)} deleted sequence(s)")
                 print(f"The following sequences got deleted {delSeqs}")
+                # Check if a unqiue sequence got deleted
+                # this would change the index for neigh
+                # Example 1 
+                # cached IDs: [(ID1, ID2,), (ID3), ...]
+                # deleted sequence: ID2
+                # This would not alter the cluster indices because we still have ID1 at the same position
+                # Example 2 
+                # same as above but deleted sequence: (ID3)
+                # This would affect the indices and results which come after ID3
                 for groupedSeqs_idx, groupedSeqs in enumerate(cached_ID):
                     counter_delSeq = 0
                     for Seq in groupedSeqs:
@@ -211,13 +220,15 @@ def calc_sparse_matrix(meta, args):
                             counter_delSeq += 1
                     if len(groupedSeqs) == counter_delSeq:
                         delSeqs_grouped_idx.append(groupedSeqs_idx)
+                # remove deleted sequence from cached meta 
                 meta_cached_wihoutdeletedSeqs = meta_cached.drop(delSeqs_grouped_idx)
+                # build dict to change indices for neigh list
                 list_of_old_indices = meta_cached_wihoutdeletedSeqs.index.tolist()
                 list_of_new_indices = []
                 for idx, i in enumerate(list_of_old_indices):
                     list_of_new_indices.append(idx)
                 zip_iterator = zip(list_of_old_indices, list_of_new_indices)
-                indices_dict = dict(zip_iterator)           
+                indices_dict = dict(zip_iterator)        
 
             meta_onlyNewSeqs = meta.iloc[newSeqs_grouped_idx]
 
@@ -268,8 +279,6 @@ def calc_sparse_matrix(meta, args):
                 neigh = neigh_cached_updated + neigh_new
             else:          
                 neigh = neigh_cached + neigh_new 
-
-            
 
     except (UnboundLocalError, TypeError) as e:
         print("Imported cached results are not available. Distance matrix of complete dataset will be calculated.")
