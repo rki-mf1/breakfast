@@ -275,7 +275,8 @@ def calc_sparse_matrix(meta, args):
                     neigh_set = [e for e in neigh_set if e not in set(delSeqs_grouped_idx)]
                     # change remaining indices
                     neigh_set_updatedidx = [indices_dict[ind] for ind in neigh_set]
-                    neigh_cached_updated.append(np.array(neigh_set_updatedidx))
+                    if neigh_set_updatedidx:
+                        neigh_cached_updated.append(np.array(neigh_set_updatedidx))
                 neigh = neigh_cached_updated + neigh_new
             else:          
                 neigh = neigh_cached + neigh_new 
