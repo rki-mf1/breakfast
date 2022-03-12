@@ -51,7 +51,7 @@ def _to_edges(l):
 
 
 def remove_indels(meta, args):
-    subs = meta[args.clust_col]
+    subs = meta['feature']
     new_sub = []
     insertion = re.compile(".*[A-Z][A-Z]$")
     for subt in subs:
@@ -87,14 +87,14 @@ def remove_indels(meta, args):
                         continue
             new_d.append(term)
         new_sub.append(' '.join(new_d))
-    meta[args.clust_col] = new_sub
+    meta['feature'] = new_sub
     return meta
 
 
 def construct_sub_mat(meta, args):
     print("Convert list of substitutions into a sparse matrix")
     insertion = re.compile(".*[A-Z][A-Z]$")
-    subs = meta[args.clust_col]
+    subs = meta['feature']
     indptr = [0]
     indices = []
     data = []
@@ -142,144 +142,161 @@ def calc_sparse_matrix(meta, args):
         with gzip.open(args.input_cache, 'rb') as f:
             print("Import from pickle file")
             loaded_obj = cPickle.load(f)
-            max_dist_cached = loaded_obj['max_dist']
 
-            if args.max_dist != max_dist_cached:
-                print(f"WARNING: Cached results were created using a differnt max-dist paramter")
-                print(f"Current max-dist parameter: {args.max_dist} \n Cached max-dist parameter: {max_dist_cached}")
-                raise UnboundLocalError()
+        max_dist_cached = loaded_obj['max_dist']
 
-            version_cached = loaded_obj['version']
-            if version_cached != VERSION:
-                print(f"WARNING: Cached results were created using breakfast version {version_cached}")
+        if args.max_dist != max_dist_cached:
+            print(f"WARNING: Cached results were created using a differnt max-dist paramter")
+            print(f"Current max-dist parameter: {args.max_dist} \n Cached max-dist parameter: {max_dist_cached}")
+            raise UnboundLocalError()
 
-            # compare cached IDs and current IDs to check if sequences have been deleted
-            cached_seqs = loaded_obj['seqs']
-            cached_ID = loaded_obj['ID']
-            current_ID = meta[args.id_col].tolist()
+        version_cached = loaded_obj['version']
+        if version_cached != VERSION:
+            print(f"WARNING: Cached results were created using breakfast version {version_cached}")
 
-            # flatten list of IDs to compare cached and current IDs
-            # since we summarized IDs with identical sequences to sets
-            # e.g. [(ID1, ID2), (ID3)] -> {ID1, ID2, ID3}
-            flat_cached_ID = set(item for sublist in cached_ID for item in sublist)
-            flat_current_ID = set(item for sublist in current_ID for item in sublist)
+        # compare cached IDs and current IDs to check if sequences have been deleted
+        cached_seqs = loaded_obj['seqs']
+        cached_ID = loaded_obj['ID']
+        current_ID = meta['id'].tolist()
 
-            # get all IDs which are part of cached ID but not anymore of current ID
-            delSeqs = list(flat_cached_ID.difference(flat_current_ID))
-            newSeqs = list(flat_current_ID.difference(flat_cached_ID))
-            commonseqs = list(flat_cached_ID.intersection(flat_current_ID))
+        # flatten list of IDs to compare cached and current IDs
+        # since we summarized IDs with identical sequences to sets
+        # e.g. [(ID1, ID2), (ID3)] -> {ID1, ID2, ID3}
+        flat_cached_ID = set(item for sublist in cached_ID for item in sublist)
+        flat_current_ID = set(item for sublist in current_ID for item in sublist)
 
+        # get all IDs which are part of cached ID but not anymore of current ID
+        delSeqs = list(flat_cached_ID.difference(flat_current_ID))
+        newSeqs = list(flat_current_ID.difference(flat_cached_ID))
+        commonseqs = list(flat_cached_ID.intersection(flat_current_ID))
 
-            meta_cached = pd.DataFrame({args.id_col:cached_ID,  args.clust_col:cached_seqs})
-            print(f"Number of unique sequences of cached results: {len(meta_cached)}")
-            
+        # Compare cached mutation profiles and current mutation profile (without new sequences)
+        # If sequence got changed, add the ID(s) to delSeqs. Treat it like a deleted sequence 
+        def ungroup_df(df, id, feat):
+            df_ungrouped = pd.DataFrame({id:np.concatenate(df[id].values),
+                                         feat:np.repeat(df[feat].values, df[id].str.len())})
+            return df_ungrouped
 
-            # What now can happen is the following
-            # cached IDs: [(ID1, ID2), (ID3)]
-            # new IDs: [(ID4), (ID5, ID6)]
-            # but f.e ID4 will get grouped with ID1, ID2 because they all have identical sequences
-            # current IDs: [(ID1, ID2, ID4), (ID3), (ID5, ID6)]
-            # so the following loop goes trough every set to check if the sequences are completly new
-            # or already known and gives back only new IDs
-            # in the example above that would be only (ID5, ID6) because the cluster_id of ID4 is already known
-            # same as (ID2, ID1)
-            newSeqs_grouped = []
-            newSeqs_grouped_idx = []
-            delSeqs_grouped_idx = []
-            # go trough all current ID sets 
-            for groupedSeqs_idx, groupedSeqs in enumerate(current_ID):
-                counter_newSeq = 0
-                # are all set members new?
+        meta_cached = pd.DataFrame({'id':cached_ID, 'feature':cached_seqs})
+        meta_cached_ungrouped = ungroup_df(meta_cached, 'id', 'feature').set_index('id')
+        meta_new_ungrouped = ungroup_df(meta, 'id', 'feature').set_index('id')
+
+        meta_merged = meta_cached_ungrouped.join(meta_new_ungrouped, how = 'inner', lsuffix='_cached', rsuffix='_new')
+        meta_merged['modified'] = meta_merged['feature_cached'] != meta_merged['feature_new']
+        modSeqs = meta_merged[meta_merged['modified']].index.tolist()
+
+        print(f"{len(modSeqs)} modified sequence(s)")
+        print(f"The following sequences were modified {modSeqs}")
+
+        # Update the deleted seqs list with the sequences that were
+        # modified, and also add them to the "newSeqs" list so that they
+        # are properly consdiered "new"
+        delSeqs += modSeqs
+        newSeqs += modSeqs
+
+        # What now can happen is the following
+        # cached IDs: [(ID1, ID2), (ID3)]
+        # new IDs: [(ID4), (ID5, ID6)]
+        # but f.e ID4 will get grouped with ID1, ID2 because they all have identical sequences
+        # current IDs: [(ID1, ID2, ID4), (ID3), (ID5, ID6)]
+        # so the following loop goes trough every set to check if the sequences are completly new
+        # or already known and gives back only new IDs
+        # in the example above that would be only (ID5, ID6) because the cluster_id of ID4 is already known
+        # same as (ID2, ID1)
+        newSeqs_grouped = []
+        newSeqs_grouped_idx = []
+        delSeqs_grouped_idx = []
+        # go trough all current ID sets 
+        for groupedSeqs_idx, groupedSeqs in enumerate(current_ID):
+            counter_newSeq = 0
+            # are all set members new?
+            for Seq in groupedSeqs:
+                if Seq in newSeqs:
+                    counter_newSeq += 1
+            # only append to list if all elements are new
+            if len(groupedSeqs) == counter_newSeq:
+                newSeqs_grouped.append(groupedSeqs)
+                newSeqs_grouped_idx.append(groupedSeqs_idx)
+
+        if (len(delSeqs)) > 0:
+            print(f"{len(delSeqs)} deleted sequence(s)")
+            print(f"The following sequences got deleted {delSeqs}")
+            # Check if a unqiue sequence got deleted
+            # this would change the index for neigh
+            # Example 1 
+            # cached IDs: [(ID1, ID2,), (ID3), ...]
+            # deleted sequence: ID2
+            # This would not alter the cluster indices because we still have ID1 at the same position
+            # Example 2 
+            # same as above but deleted sequence: (ID3)
+            # This would affect the indices and results which come after ID3
+            for groupedSeqs_idx, groupedSeqs in enumerate(cached_ID):
+                counter_delSeq = 0
                 for Seq in groupedSeqs:
-                    if Seq in newSeqs:
-                        counter_newSeq += 1
-                # only append to list if all elements are new
-                if len(groupedSeqs) == counter_newSeq:
-                    newSeqs_grouped.append(groupedSeqs)
-                    newSeqs_grouped_idx.append(groupedSeqs_idx)
+                    if Seq in delSeqs:
+                        counter_delSeq += 1
+                if len(groupedSeqs) == counter_delSeq:
+                    delSeqs_grouped_idx.append(groupedSeqs_idx)
+            # remove deleted sequence from cached meta 
+            meta_cached_wihoutdeletedSeqs = meta_cached.drop(delSeqs_grouped_idx)
+            # build dict to change indices for neigh list
+            list_of_old_indices = meta_cached_wihoutdeletedSeqs.index.tolist()
+            list_of_new_indices = []
+            for idx, i in enumerate(list_of_old_indices):
+                list_of_new_indices.append(idx)
+            zip_iterator = zip(list_of_old_indices, list_of_new_indices)
+            indices_dict = dict(zip_iterator)        
 
-            # TODO compare cached mutation profiles and current mutation profile (without new sequences)
-            # If sequence got changed, add the ID(s) to delSeqs. Treat it like a deleted sequence 
+        meta_onlyNewSeqs = meta.iloc[newSeqs_grouped_idx]
 
-            if (len(delSeqs)) > 0:
-                print(f"{len(delSeqs)} deleted sequence(s)")
-                print(f"The following sequences got deleted {delSeqs}")
-                # Check if a unqiue sequence got deleted
-                # this would change the index for neigh
-                # Example 1 
-                # cached IDs: [(ID1, ID2,), (ID3), ...]
-                # deleted sequence: ID2
-                # This would not alter the cluster indices because we still have ID1 at the same position
-                # Example 2 
-                # same as above but deleted sequence: (ID3)
-                # This would affect the indices and results which come after ID3
-                for groupedSeqs_idx, groupedSeqs in enumerate(cached_ID):
-                    counter_delSeq = 0
-                    for Seq in groupedSeqs:
-                        if Seq in delSeqs:
-                            counter_delSeq += 1
-                    if len(groupedSeqs) == counter_delSeq:
-                        delSeqs_grouped_idx.append(groupedSeqs_idx)
-                # remove deleted sequence from cached meta 
-                meta_cached_wihoutdeletedSeqs = meta_cached.drop(delSeqs_grouped_idx)
-                # build dict to change indices for neigh list
-                list_of_old_indices = meta_cached_wihoutdeletedSeqs.index.tolist()
-                list_of_new_indices = []
-                for idx, i in enumerate(list_of_old_indices):
-                    list_of_new_indices.append(idx)
-                zip_iterator = zip(list_of_old_indices, list_of_new_indices)
-                indices_dict = dict(zip_iterator)        
+        print(f"Number of new unique sequences compared to cached results: {len(meta_onlyNewSeqs)}")
 
-            meta_onlyNewSeqs = meta.iloc[newSeqs_grouped_idx]
+        # construct sub_mat of complete dataset and sub_mat of only new sequences compared to cached meta
+        sub_mat = construct_sub_mat(meta, args)
+        select_ind = np.array(newSeqs_grouped_idx)
+        sub_mat_onlyNewSeqs = sub_mat[select_ind,:]
 
-            print(f"Number of new unique sequences compared to cached results: {len(meta_onlyNewSeqs)}")
+        print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
 
-            # construct sub_mat of complete dataset and sub_mat of only new sequences compared to cached meta
-            sub_mat = construct_sub_mat(meta, args)
-            select_ind = np.array(newSeqs_grouped_idx)
-            sub_mat_onlyNewSeqs = sub_mat[select_ind,:]
+        def _reduce_func(D_chunk, start):
+            neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
+            return neigh
 
-            print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
+        gen = pairwise_distances_chunked(
+        X=sub_mat_onlyNewSeqs,
+        Y=sub_mat,
+        reduce_func=_reduce_func, 
+        metric="manhattan", 
+        n_jobs=1,
+        )
+        # TODO: If sequences got deleted we would need to change neigh_new and neigh_cached
+        # Lets say we have as similar example as above
+        # cached IDs: [(ID1, ID2), (ID3), (ID3_dup)]
+        # new IDs: [(ID4), (ID5, ID6), ... ]
+        # deleted IDs: [(ID3_dup)]
+        # current IDs: [(ID1, ID2, ID4), (ID3), (ID5, ID6), ...]
+        # cached neigh: [(1), (2), (3)]
+        # new neigh: [(3), ...]
+        # because ID3 got deleted we need to adjust the index of cached neigh
+        # cached neigh [(1), (2)]
+        # new neigh [(3), ...]
+        neigh_new = list(chain.from_iterable(gen))
+        neigh_cached = loaded_obj['neigh']
 
-            def _reduce_func(D_chunk, start):
-                neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
-                return neigh
-
-            gen = pairwise_distances_chunked(
-            X=sub_mat_onlyNewSeqs,
-            Y=sub_mat,
-            reduce_func=_reduce_func, 
-            metric="manhattan", 
-            n_jobs=1,
-            )
-            # TODO: If sequences got deleted we would need to change neigh_new and neigh_cached
-            # Lets say we have as similar example as above
-            # cached IDs: [(ID1, ID2), (ID3), (ID3_dup)]
-            # new IDs: [(ID4), (ID5, ID6), ... ]
-            # deleted IDs: [(ID3_dup)]
-            # current IDs: [(ID1, ID2, ID4), (ID3), (ID5, ID6), ...]
-            # cached neigh: [(1), (2), (3)]
-            # new neigh: [(3), ...]
-            # because ID3 got deleted we need to adjust the index of cached neigh
-            # cached neigh [(1), (2)]
-            # new neigh [(3), ...]
-            neigh_new = list(chain.from_iterable(gen))
-            neigh_cached = loaded_obj['neigh']
-
-            if (len(delSeqs)) > 0:
-                neigh_cached_updated = []
-                # go trough each cached neight array
-                for neigh_set in neigh_cached:
-                    neigh_set = list(neigh_set)
-                    # remove deleted indices 
-                    neigh_set = [e for e in neigh_set if e not in set(delSeqs_grouped_idx)]
-                    # change remaining indices
-                    neigh_set_updatedidx = [indices_dict[ind] for ind in neigh_set]
-                    if neigh_set_updatedidx:
-                        neigh_cached_updated.append(np.array(neigh_set_updatedidx))
-                neigh = neigh_cached_updated + neigh_new
-            else:          
-                neigh = neigh_cached + neigh_new 
+        if (len(delSeqs)) > 0:
+            neigh_cached_updated = []
+            # go trough each cached neight array
+            for neigh_set in neigh_cached:
+                neigh_set = list(neigh_set)
+                # remove deleted indices 
+                neigh_set = [e for e in neigh_set if e not in set(delSeqs_grouped_idx)]
+                # change remaining indices
+                neigh_set_updatedidx = [indices_dict[ind] for ind in neigh_set]
+                if neigh_set_updatedidx:
+                    neigh_cached_updated.append(np.array(neigh_set_updatedidx))
+            neigh = neigh_cached_updated + neigh_new
+        else:          
+            neigh = neigh_cached + neigh_new 
 
     except (UnboundLocalError, TypeError) as e:
         print("Imported cached results are not available. Distance matrix of complete dataset will be calculated.")
@@ -300,11 +317,10 @@ def calc_sparse_matrix(meta, args):
         )
         neigh = list(chain.from_iterable(gen))
         
-
     # EXPORT RESULTS FOR CACHING
     try:
         print("Export results as pickle")
-        d = {'max_dist': args.max_dist, 'version' : VERSION, 'neigh' : neigh, 'ID': meta[args.id_col].tolist(), 'seqs': meta[args.clust_col].tolist()}
+        d = {'max_dist': args.max_dist, 'version' : VERSION, 'neigh' : neigh, 'ID': meta['id'].tolist(), 'seqs': meta['feature'].tolist()}
         with gzip.open(args.output_cache, 'wb') as f:
             cPickle.dump(d, f, 2) # protocol 2, python > 2.3
     except TypeError:
@@ -317,7 +333,7 @@ def calc_sparse_matrix(meta, args):
     print("Save clusters")
     meta['cluster_id'] = pd.NA
     cluster_id = 0
-    accession_list = meta[args.id_col].tolist()
+    accession_list = meta['id'].tolist()
     for clust in clusters:
         clust_len = 0
         for set_clust in clust:
@@ -332,7 +348,7 @@ def calc_sparse_matrix(meta, args):
 def calc_without_sparse_matrix(meta, args):
     print("Skip sparse matrix calculation since max-dist = 0")
     clusters = list(range(0,len(meta)))
-    accession_list = meta[args.id_col].tolist()
+    accession_list = meta['id'].tolist()
     meta['cluster_id'] = pd.NA
     cluster_id = 0
     for clust in clusters:
@@ -456,7 +472,7 @@ def main():
           usecols=[args.id_col, args.clust_col],
           dtype={args.id_col: str, args.clust_col: str},
           sep=args.sep,
-       )
+        ).rename(columns={args.id_col: "id", args.clust_col: "feature"})
     else:
       print(f"The input file {args.input_file} cannot be found!")
       exit()
@@ -467,11 +483,10 @@ def main():
     if args.skip_del or args.skip_ins:
         meta = remove_indels(meta, args)
 
-    print(f"Number of duplicates: {meta[args.clust_col].duplicated().sum()}")
+    print(f"Number of duplicates: {meta['feature'].duplicated().sum()}")
     
     # Group IDs with identical sequences together
-    meta_withoutDUPS = meta.groupby(args.clust_col,as_index=False, sort=False).agg({args.id_col:lambda x : tuple(x),args.clust_col:'first'})
-    
+    meta_withoutDUPS = meta.groupby('feature', as_index=False, sort=False).agg({'id':lambda x : tuple(x), 'feature':'first'})
     print(f"Number of unique sequences: {meta_withoutDUPS.shape[0]}")
 
     if args.max_dist == 0:
@@ -479,28 +494,28 @@ def main():
     else:
         meta_withoutDUPS = calc_sparse_matrix(meta_withoutDUPS, args)
 
-
     # Assign correct ID
     meta_clusterid = []
     meta_accession = []
-    accession_list = meta_withoutDUPS[args.id_col].tolist()
+    accession_list = meta_withoutDUPS['id'].tolist()
     cluster_ids = meta_withoutDUPS['cluster_id'].tolist()
     for accession, clust_id in zip(accession_list, cluster_ids):
       for seq in accession:
         meta_accession.append(seq)
         meta_clusterid.append(clust_id)
     meta_out = pd.DataFrame()
-    meta_out[args.id_col] = meta_accession
+    meta_out['id'] = meta_accession
     meta_out['cluster_id'] = meta_clusterid
 
     # Sort according to input file
-    meta_out = meta_out.set_index(args.id_col)
-    meta_out = meta_out.reindex(index=meta[args.id_col])
+    meta_out = meta_out.set_index('id')
+    meta_out = meta_out.reindex(index=meta['id'])
     meta_out = meta_out.reset_index()
 
-    meta_out[[args.id_col, "cluster_id"]].to_csv(
+    meta_out[['id', "cluster_id"]].to_csv(
         os.path.join(args.outdir, "clusters.tsv"), sep="\t", index=False
     )
+
 
 # Main body
 if __name__ == "__main__":
