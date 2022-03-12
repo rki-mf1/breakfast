@@ -175,8 +175,8 @@ def calc_sparse_matrix(meta, args):
         def ungroup_df(df):
             df_ungrouped = pd.DataFrame(
                 {
-                    id: np.concatenate(df["id"].values),
-                    feature: np.repeat(df["feature"].values, df["id"].str.len()),
+                    "id": np.concatenate(df["id"].values),
+                    "feature": np.repeat(df["feature"].values, df["id"].str.len()),
                 }
             )
             return df_ungrouped
@@ -214,7 +214,7 @@ def calc_sparse_matrix(meta, args):
         new_seqs_grouped_idx = []
         del_seqs_grouped_idx = []
         # go trough all current ID sets
-        for grouped_seqs_idx, grouped_seqs in enumerate(current_ID):
+        for grouped_seqs_idx, grouped_seqs in enumerate(current_id):
             counter_new_seq = 0
             # are all set members new?
             for seq in grouped_seqs:
@@ -237,7 +237,7 @@ def calc_sparse_matrix(meta, args):
             # Example 2
             # same as above but deleted sequence: (ID3)
             # This would affect the indices and results which come after ID3
-            for grouped_seqs_idx, grouped_seqs in enumerate(cached_ID):
+            for grouped_seqs_idx, grouped_seqs in enumerate(cached_id):
                 counter_del_seq = 0
                 for seq in grouped_seqs:
                     if seq in del_seqs:
