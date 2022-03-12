@@ -1,27 +1,21 @@
 #!/usr/bin/env python
+
 VERSION = "0.3.0"
 
 import argparse
-import sys
-from itertools import chain
-from scipy.sparse import csr_matrix
-from sklearn.metrics import pairwise_distances_chunked
-from sklearn.metrics import pairwise_distances
-import pandas as pd
-import numpy as np
+import gzip
 import os
 import re
+import sys
+from itertools import chain
+
 import _pickle as cPickle
-
-# import hashlib
-import gzip
-
-
 import networkx
+import numpy as np
+import pandas as pd
 from networkx.algorithms.components.connected import connected_components
-
-# import time
-# start_time = time.time()
+from scipy.sparse import csr_matrix
+from sklearn.metrics import pairwise_distances_chunked
 
 
 # Merge connected components
