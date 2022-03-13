@@ -29,7 +29,7 @@ def update_neighbours(neigh, fmap):
     c2n = fmap.set_index("idx_cache")
     neigh_updated = []
     for nlist in neigh:
-        nlist_updated = c2n.loc[nlist, "idx_new"].dropna().tolist()
+        nlist_updated = c2n.loc[nlist, "idx_new"].dropna().astype(int).tolist()
         if len(nlist_updated) > 0:
             neigh_updated.append(nlist_updated)
 
