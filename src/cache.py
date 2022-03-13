@@ -19,51 +19,57 @@ def validate(cache, args, version):
             f"WARNING: Cached results were created using breakfast version {version_cached}"
         )
 
-def find_deleted(cache, meta):
-    # compare cached IDs and current IDs to check if sequences have been deleted
-    meta_cached = cache["meta"]
-    cached_seqs = meta_cached["feature"]
-    cached_id = meta_cached["id"]
-    current_id = meta["id"].tolist()
+def update_neighbours(neigh, fmap):
+    """Update cached neighrours list to index into new data properly
 
-    # flatten list of IDs to compare cached and current IDs
-    # since we summarized IDs with identical sequences to sets
-    # e.g. [(ID1, ID2), (ID3)] -> {ID1, ID2, ID3}
-    flat_cached_id = set(item for sublist in cached_id for item in sublist)
-    flat_current_id = set(item for sublist in current_id for item in sublist)
+    This includes deleting elements that have been deleted from the new data
+    set, and also updating the indexes in the neigh list to properly point to
+    the right data in the new data set.
+    """
+    c2n = fmap.set_index("idx_cache")
+    neigh_updated = []
+    for nlist in neigh:
+        nlist_updated = c2n.loc[nlist, "idx_new"].dropna().tolist()
+        if len(nlist_updated) > 0:
+            neigh_updated.append(nlist_updated)
 
-    # get all IDs which are part of cached ID but not anymore of current ID
-    del_seqs = list(flat_cached_id.difference(flat_current_id))
-    new_seqs = list(flat_current_id.difference(flat_cached_id))
-    common_seqs = list(flat_cached_id.intersection(flat_current_id))
+    return neigh_updated
 
-    return del_seqs, new_seqs, common_seqs
 
-def find_modified(cache, meta):
-    # Undo the grouping/deduplication of sequences so we can work with
-    # individual sequence ids
-    def ungroup_df(df):
-        df_ungrouped = pd.DataFrame(
-            {
-                "id": np.concatenate(df["id"].values),
-                "feature": np.repeat(df["feature"].values, df["id"].str.len()),
-            }
-        )
-        return df_ungrouped
+def find_deleted(feature_map):
+    """Find elements in the cache that are not present in the new data
 
-    meta_cached = cache["meta"]
-    meta_cached_ungrouped = ungroup_df(meta_cached).set_index("id")
-    meta_new_ungrouped = ungroup_df(meta).set_index("id")
+    Returns the index of the deleted elements in the cache, so that they can be
+    removed from the neighbours (neigh) object
+    """
+    idx_cache_only = fmap[fmap["idx_new"].isna().tolist()]["idx_cache"]
+    return idx_cache_only
 
-    meta_merged = meta_cached_ungrouped.join(
-        meta_new_ungrouped, how="inner", lsuffix="_cached", rsuffix="_new"
-    )
-    meta_merged["modified"] = (
-        meta_merged["feature_cached"] != meta_merged["feature_new"]
-    )
-    mod_seqs = meta_merged[meta_merged["modified"]].index.tolist()
 
-    print(f"{len(mod_seqs)} modified sequence(s)")
-    print(f"The following sequences were modified {mod_seqs}")
+def find_new(fmap):
+    """Find elements in the cache that are not present in the new data
 
-    return mod_seqs
+    Returns the index of the deleted elements in the cache, so that they can be
+    removed from the neighbours (neigh) object
+    """
+    idx_new_only = fmap[fmap["idx_cache"].isna().tolist()]["idx_new"]
+    return idx_new_only
+
+
+def map_features(cached_feats, new_feats):
+    """Map between the indexes of the cached and new data, based on the features
+    """
+
+    cached_df = pd.DataFrame({
+                            "idx": range(cached_feats.size),
+                            "feature": cached_feats,
+                            }).set_index("feature")
+    new_df = pd.DataFrame({
+                            "idx": range(new_feats.size),
+                            "feature": new_feats,
+                            }).set_index("feature")
+
+    feat_map = cached_df.join(new_df, how="outer", lsuffix="_cache", rsuffix="_new")
+
+    return feat_map
+
