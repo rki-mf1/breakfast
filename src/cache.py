@@ -1,3 +1,4 @@
+import math
 import numpy as np
 import pandas as pd
 
@@ -19,17 +20,23 @@ def validate(cache, args, version):
             f"WARNING: Cached results were created using breakfast version {version_cached}"
         )
 
+
 def update_neighbours(neigh, fmap):
-    """Update cached neighrours list to index into new data properly
+    """Update cached neighbours list to index into new data properly
 
     This includes deleting elements that have been deleted from the new data
     set, and also updating the indexes in the neigh list to properly point to
     the right data in the new data set.
     """
-    c2n = fmap.set_index("idx_cache")
+    # Create a list that can do lookups in O(1)
+    max_idx = int(max(fmap["idx_cache"].dropna()))
+    c2n = [None] * (max_idx + 1)
+    for idx, row in fmap.dropna().iterrows():
+        c2n[int(row["idx_cache"])] = int(row["idx_new"])
+
     neigh_updated = []
-    for nlist in neigh:
-        nlist_updated = c2n.loc[nlist, "idx_new"].dropna().astype(int).tolist()
+    for i, nlist in enumerate(neigh):
+        nlist_updated = [c2n[item] for item in nlist if not math.isnan(c2n[item])]
         if len(nlist_updated) > 0:
             neigh_updated.append(nlist_updated)
 

@@ -103,7 +103,9 @@ def construct_sub_mat(meta, args):
                 d = [subt]
         for term in d:
             if args.var_type == "dna":
-                if term.startswith("del"):
+                if len(term) == 0:
+                    continue
+                elif term.startswith("del"):
                     if args.skip_del:
                         continue
                     pos = int(term.split(":")[1])
