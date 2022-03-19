@@ -36,7 +36,8 @@ def update_neighbours(neigh, fmap):
 
     neigh_updated = []
     for i, nlist in enumerate(neigh):
-        nlist_updated = [c2n[item] for item in nlist if not math.isnan(c2n[item])]
+        nlist_updated = [c2n[item] for item in nlist]
+        nlist_updated = [x for x in nlist_updated if x is not None]
         if len(nlist_updated) > 0:
             neigh_updated.append(nlist_updated)
 
