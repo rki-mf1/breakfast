@@ -1,6 +1,6 @@
-# breakfast - Fast outbreak detection and sequence clustering
+# breakfast - FAST outBREAK detection and sequence clustering
 
-`breakfast` is a simple and fast clustering script developed for SARS-CoV-2 genomes using precalculated sequence features (e.g. nucleotide substitutions) from [Covsonar](https://gitlab.com/s.fuchs/covsonar). 
+`breakfast` is a simple and fast script developed for clustering SARS-CoV-2 genomes using precalculated sequence features (e.g. nucleotide substitutions) from [covSonar](https://gitlab.com/s.fuchs/covsonar). 
 
 **This project is under development and in experimental stage**
 
@@ -25,7 +25,7 @@ Clustering with a maximum SNP-distance of 1 and excluding clusters below a size 
 
 #### --input-file
 A TSV file with mutation profiles to be clustered. The file requires a column specifiying the sequence ID and a column specifying the DNA or AA mutation profile.
-We recommend using [Covsonar](https://gitlab.com/s.fuchs/covsonar) to generate mutation profiles from a fasta file. 
+We recommend using [covSonar](https://gitlab.com/s.fuchs/covsonar) to generate mutation profiles from a fasta file. 
 
 #### --id-col
 The name of the sequence identifier column of the input file. If none is given, it will be 'accession' by default.
@@ -63,13 +63,8 @@ By default deletions will be skipped for calculating the pairwise distance of yo
 #### --skip-ins, --no-skip-ins
 By default insertions will be skipped for calculating the pairwise distance of your input sequences.
 
-#### --previous-result
-Specify the path to the resulting 'clusters.tsv' from a previous run of breakfast. 
-Using this parameter can be helpful if you added additional sequences to your input database and want to keep the cluster IDs consistent in the new run. 
+#### --input-cache
+Specify path to import results from previous run as pickle file. Only new sequences will be used for distance matrix computation to reduce the runtime. If none is given, the complete dataset will be used for computing the pairwise distances via sparse matrix computation.
 
-
-## Logo
-
-The breakfast logo is CC licensed:
-
-Breakfast by Tippawan Sookruay from the Noun Project.
+#### --output-cache
+Specify path to export results as pickle file. Results can be saved and used in the next run to reduce the runtime. 
