@@ -10,3 +10,4 @@ dependencies:
   - pandas
   - scikit-learn
   - scipy
+  - cython

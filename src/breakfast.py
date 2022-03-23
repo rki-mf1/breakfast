@@ -1,24 +1,23 @@
 #!/usr/bin/env python
-VERSION="0.2.4"
+
+VERSION = "0.3.0"
 
 import argparse
-import collections
+import gzip
+import os
+import re
 import sys
 from itertools import chain
-from scipy.sparse import csr_matrix
 
-from sklearn.metrics import pairwise_distances_chunked
-from sklearn.metrics import pairwise_distances
-import sklearn.datasets
-import pandas as pd
-import numpy as np
-import math
-import os
-import datetime
-import re
-
+import _pickle as cPickle
 import networkx
+import numpy as np
+import pandas as pd
 from networkx.algorithms.components.connected import connected_components
+from scipy.sparse import csr_matrix
+from sklearn.metrics import pairwise_distances_chunked
+
+import cache as ca
 
 
 # Merge connected components
@@ -45,11 +44,209 @@ def _to_edges(l):
         last = current
 
 
+def remove_indels(meta, args):
+    subs = meta["feature"]
+    new_sub = []
+    insertion = re.compile(".*[A-Z][A-Z]$")
+    for subt in subs:
+        if isinstance(subt, float):
+            d = []
+        else:
+            if subt.find(args.sep2) != -1:
+                d = subt.split(args.sep2)
+            else:
+                d = [subt]
+        new_d = []
+        for term in d:
+            if args.var_type == "dna":
+                if term.startswith("del"):
+                    if args.skip_del:
+                        continue
+                    pos = int(term.split(":")[1])
+                    if ((args.trim_start is not None) and (pos <= args.trim_start)) or (
+                        (args.trim_end is not None)
+                        and (pos >= (args.reference_length - args.trim_end))
+                    ):
+                        continue
+                elif args.skip_ins and insertion.match(term) is not None:
+                    continue
+                else:
+                    # Blindly remove reference and alt NT, leaving the position. Then
+                    # check if it is in the regions we want to trim away
+                    pos = int(term.translate(str.maketrans("", "", "ACGTN")))
+                    if ((args.trim_start is not None) and (pos <= args.trim_start)) or (
+                        (args.trim_end is not None)
+                        and (pos >= (args.reference_length - args.trim_end))
+                    ):
+                        continue
+            new_d.append(term)
+        new_sub.append(" ".join(new_d))
+    meta["feature"] = new_sub
+    return meta
+
+
+def construct_sub_mat(meta, args):
+    print("Convert list of substitutions into a sparse matrix")
+    insertion = re.compile(".*[A-Z][A-Z]$")
+    subs = meta["feature"]
+    indptr = [0]
+    indices = []
+    data = []
+    vocabulary = {}
+    for subt in subs:
+        if isinstance(subt, float):
+            d = []
+        else:
+            if subt.find(args.sep2) != -1:
+                d = subt.split(args.sep2)
+            else:
+                d = [subt]
+        for term in d:
+            if args.var_type == "dna":
+                if len(term) == 0:
+                    continue
+                elif term.startswith("del"):
+                    if args.skip_del:
+                        continue
+                    pos = int(term.split(":")[1])
+                    if ((args.trim_start is not None) and (pos <= args.trim_start)) or (
+                        (args.trim_end is not None)
+                        and (pos >= (args.reference_length - args.trim_end))
+                    ):
+                        continue
+                elif args.skip_ins and insertion.match(term) is not None:
+                    continue
+                else:
+                    # Blindly remove reference and alt NT, leaving the position. Then
+                    # check if it is in the regions we want to trim away
+                    pos = int(term.translate(str.maketrans("", "", "ACGTN")))
+                    if ((args.trim_start is not None) and (pos <= args.trim_start)) or (
+                        (args.trim_end is not None)
+                        and (pos >= (args.reference_length - args.trim_end))
+                    ):
+                        continue
+            index = vocabulary.setdefault(term, len(vocabulary))
+            indices.append(index)
+            data.append(1)
+        indptr.append(len(indices))
+    sub_mat = csr_matrix((data, indices, indptr), dtype=int)
+    return sub_mat
+
+
+def calc_sparse_matrix(meta, args):
+    # IMPORT RESULTS FROM PREVIOUS RUN
+    try:
+        with gzip.open(args.input_cache, "rb") as f:
+            print("Import from pickle file")
+            cache = cPickle.load(f)
+
+        ca.validate(cache, args, VERSION)
+
+        feature_map = ca.map_features(cache["meta"]["feature"], meta["feature"])
+        neigh_cache_updated = ca.update_neighbours(cache["neigh"], feature_map)
+
+        # construct sub_mat of complete dataset and sub_mat of only new sequences compared to cached meta
+        idx_only_new = ca.find_new(feature_map)
+        select_ind = np.array(idx_only_new)
+        sub_mat = construct_sub_mat(meta, args)
+        sub_mat_only_new_seqs = sub_mat[select_ind, :]
+
+        print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
+
+        def _reduce_func(D_chunk, start):
+            neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
+            return neigh
+
+        gen = pairwise_distances_chunked(
+            X=sub_mat_only_new_seqs,
+            Y=sub_mat,
+            reduce_func=_reduce_func,
+            metric="manhattan",
+            n_jobs=1,
+        )
+
+        neigh_new = list(chain.from_iterable(gen))
+        neigh = neigh_cache_updated + neigh_new
+
+    except (UnboundLocalError, TypeError) as e:
+        print(
+            "Imported cached results are not available. Distance matrix of complete dataset will be calculated."
+        )
+
+        sub_mat = construct_sub_mat(meta, args)
+
+        print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
+
+        def _reduce_func(D_chunk, start):
+            neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
+            return neigh
+
+        gen = pairwise_distances_chunked(
+            sub_mat,
+            reduce_func=_reduce_func,
+            metric="manhattan",
+            n_jobs=1,
+        )
+        neigh = list(chain.from_iterable(gen))
+
+    # EXPORT RESULTS FOR CACHING
+    try:
+        print("Export results as pickle")
+        d = {
+            "max_dist": args.max_dist,
+            "version": VERSION,
+            "neigh": neigh,
+            "meta": meta[["id", "feature"]],
+        }
+        with gzip.open(args.output_cache, "wb") as f:
+            cPickle.dump(d, f, 2)  # protocol 2, python > 2.3
+    except TypeError:
+        print("Export of pickle was not succesfull")
+
+    print("Create graph and recover connected components")
+    G = _to_graph(neigh)
+    clusters = connected_components(G)
+
+    print("Save clusters")
+    meta["cluster_id"] = pd.NA
+    cluster_id = 0
+    accession_list = meta["id"].tolist()
+    for clust in clusters:
+        clust_len = 0
+        for set_clust in clust:
+            clust_len += len(accession_list[set_clust])
+        if clust_len >= args.min_cluster_size:
+            cluster_id += 1
+            meta.iloc[list(clust), meta.columns.get_loc("cluster_id")] = cluster_id
+    print(f"Number of clusters found: {cluster_id}")
+    return meta
+
+
+# TODO: Caching results for max-dist 0
+def calc_without_sparse_matrix(meta, args):
+    print("Skip sparse matrix calculation since max-dist = 0")
+    clusters = list(range(0, len(meta)))
+    accession_list = meta["id"].tolist()
+    meta["cluster_id"] = pd.NA
+    cluster_id = 0
+    for clust in clusters:
+        clust_len = len(accession_list[clust])
+        if clust_len >= args.min_cluster_size:
+            cluster_id += 1
+            meta.iloc[clust, meta.columns.get_loc("cluster_id")] = cluster_id
+    print(f"Number of clusters found: {cluster_id}")
+    return meta
+
+
 def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument("--input-file", help="Input file")
+    parser.add_argument("--input-file", help="Input file", required=True)
+    parser.add_argument(
+        "--input-cache", help="Input cached pickle file from previous run"
+    )
+    parser.add_argument("--output-cache", help="Path to Output cached pickle file")
     parser.add_argument("--id-col", help="Column with the sequence identifier")
     parser.add_argument(
         "--clust-col", help="Metadata column to cluster (default = 'dna_profile')"
@@ -105,10 +302,12 @@ def main():
         help="Skip insertions",
     )
 
-    parser.add_argument('--version', action='version', version='%(prog)s ' + VERSION)
+    parser.add_argument("--version", action="version", version="%(prog)s " + VERSION)
 
     parser.set_defaults(
         input_file="../input/covsonar/rki-2021-05-19-minimal.tsv.gz",
+        input_cache=None,
+        output_cache=None,
         id_col="accession",
         clust_col="dna_profile",
     )
@@ -144,98 +343,60 @@ def main():
     print(f"  reference length (bp) = {args.reference_length}")
     print(f"  skip deletions = {args.skip_del}")
     print(f"  skip insertions = {args.skip_ins}")
-    
+    print(f"  Input cache file = {args.input_cache}")
+    print(f"  Output cache file = {args.output_cache}")
+
     if os.path.isfile(args.input_file):
-      meta = pd.read_table(
-          args.input_file,
-          usecols=[args.id_col, args.clust_col],
-          dtype={args.id_col: str, args.clust_col: str},
-          sep=args.sep,
-       )
+        meta = pd.read_table(
+            args.input_file,
+            usecols=[args.id_col, args.clust_col],
+            dtype={args.id_col: str, args.clust_col: str},
+            sep=args.sep,
+        ).rename(columns={args.id_col: "id", args.clust_col: "feature"})
     else:
-      print(f"The input file {args.input_file} cannot be found!")
-      exit()
+        print(f"The input file {args.input_file} cannot be found!")
+        exit()
 
     print(f"Number of sequences: {meta.shape[0]}")
 
-    print("Convert list of substitutions into a sparse matrix")
-    insertion = re.compile(".*[A-Z][A-Z]$")
-    subs = meta[args.clust_col]
-    indptr = [0]
-    indices = []
-    data = []
-    vocabulary = {}
-    for subt in subs:
-        if isinstance(subt, float):
-            d = []
-        else:
-            if subt.find(args.sep2) != -1:
-                d = subt.split(args.sep2)
-            else:
-                d = [subt]
-        for term in d:
-            if args.var_type == "dna":
-                if term.startswith("del"):
-                    if args.skip_del:
-                        continue
-                    pos = int(term.split(":")[1])
-                    if ((args.trim_start is not None) and (pos <= args.trim_start)) or (
-                        (args.trim_end is not None)
-                        and (pos >= (args.reference_length - args.trim_end))
-                    ):
-                        continue
-                elif args.skip_ins and insertion.match(term) is not None:
-                    continue
-                else:
-                    # Blindly remove reference and alt NT, leaving the position. Then
-                    # check if it is in the regions we want to trim away
-                    pos = int(term.translate(str.maketrans("", "", "ACGTN")))
-                    if ((args.trim_start is not None) and (pos <= args.trim_start)) or (
-                        (args.trim_end is not None)
-                        and (pos >= (args.reference_length - args.trim_end))
-                    ):
-                        continue
+    # Remove Indels from mutation profiles before grouping sequences together
+    if args.skip_del or args.skip_ins:
+        meta = remove_indels(meta, args)
 
-            index = vocabulary.setdefault(term, len(vocabulary))
-            indices.append(index)
-            data.append(1)
-        indptr.append(len(indices))
-    sub_mat = csr_matrix((data, indices, indptr), dtype=int)
-    num_nz = sub_mat.getnnz()
-    print(
-        f"Number of non-zero matrix entries: {num_nz} ({100 * (num_nz/(sub_mat.shape[0] * sub_mat.shape[1])):.2f}%)"
+    print(f"Number of duplicates: {meta['feature'].duplicated().sum()}")
+
+    # Group IDs with identical sequences together
+    meta_withoutDUPS = meta.groupby("feature", as_index=False, sort=False).agg(
+        {"id": lambda x: tuple(x), "feature": "first"}
     )
+    print(f"Number of unique sequences: {meta_withoutDUPS.shape[0]}")
 
-    print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
+    if args.max_dist == 0:
+        meta_withoutDUPS = calc_without_sparse_matrix(meta_withoutDUPS, args)
+    else:
+        meta_withoutDUPS = calc_sparse_matrix(meta_withoutDUPS, args)
 
+    # Assign correct ID
+    meta_clusterid = []
+    meta_accession = []
+    accession_list = meta_withoutDUPS["id"].tolist()
+    cluster_ids = meta_withoutDUPS["cluster_id"].tolist()
+    for accession, clust_id in zip(accession_list, cluster_ids):
+        for seq in accession:
+            meta_accession.append(seq)
+            meta_clusterid.append(clust_id)
+    meta_out = pd.DataFrame()
+    meta_out["id"] = meta_accession
+    meta_out["cluster_id"] = meta_clusterid
 
-    def _reduce_func(D_chunk, start):
-        neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
-        return neigh
+    # Sort according to input file
+    meta_out = meta_out.set_index("id")
+    meta_out = meta_out.reindex(index=meta["id"])
+    meta_out = meta_out.reset_index()
 
-    gen = pairwise_distances_chunked(
-        sub_mat, reduce_func=_reduce_func, metric="manhattan"
-    )
-
-    neigh = list(chain.from_iterable(gen))
-    
-    print("Create graph and recover connected components")
-    G = _to_graph(neigh)
-    clusters = connected_components(G)
-
-    print("Save clusters")
-    meta["cluster_id"] = pd.NA
-    cluster_id = 0
-    for clust in clusters:
-        if len(clust) >= args.min_cluster_size:
-            cluster_id += 1
-            meta.iloc[list(clust), meta.columns.get_loc("cluster_id")] = cluster_id
-
-    meta[[args.id_col, "cluster_id"]].to_csv(
+    meta_out[["id", "cluster_id"]].to_csv(
         os.path.join(args.outdir, "clusters.tsv"), sep="\t", index=False
     )
-
-    print(f"Number of clusters found: {cluster_id}")
 
 
 # Main body
