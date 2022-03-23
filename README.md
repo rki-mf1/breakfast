@@ -4,7 +4,7 @@
 
 **This project is under development and in experimental stage**
 
-<img src="/img/breakfast_logo.png" width="300">
+<img src="/img/breakfast_logo_2.png" width="300">
 
 ## Installation
 
