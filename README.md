@@ -4,6 +4,8 @@
 
 **This project is under development and in experimental stage**
 
+<img src="/img/breakfast_logo.png" width="300">
+
 ## Installation
 
 ### System Dependencies
