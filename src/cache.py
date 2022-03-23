@@ -44,7 +44,7 @@ def update_neighbours(neigh, fmap):
     return neigh_updated
 
 
-def find_deleted(feature_map):
+def find_deleted(fmap):
     """Find elements in the cache that are not present in the new data
 
     Returns the index of the deleted elements in the cache, so that they can be
