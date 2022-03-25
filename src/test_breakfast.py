@@ -40,12 +40,12 @@ def test_clustering_dist1_noskipdel():
 # caching tests
 
 def test_caching_export():
-    os.system('python src/breakfast.py --input-file test/testfile.tsv --outdir test/ --max-dist 1 --output-cache test/testfile.json')
+    exit_status = os.system('python src/breakfast.py --input-file test/testfile.tsv --outdir test/ --max-dist 1 --output-cache test/testfile.json')
     assert exit_status == 0
     assert os.path.exists('test/testfile.json')
 
 def test_caching_import():
-    os.system('python src/breakfast.py --input-file test/testfile_caching01_AddedSeqs.tsv --outdir test/ --max-dist 1 --input-cache test/testfile.json')
+    exit_status = os.system('python src/breakfast.py --input-file test/testfile_caching01_AddedSeqs.tsv --outdir test/ --max-dist 1 --input-cache test/testfile.json')
     assert exit_status == 0
 
 def test_caching_01_AddingSequences():
