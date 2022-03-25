@@ -105,7 +105,7 @@ def test_caching_07_MultipleTests():
     o = open(output_file, "r")
     assert e.read() == o.read()
 
-def test_caching_08_MultipleTests():
+def test_caching_08_NoChanges():
     os.system('python src/breakfast.py --input-file test/testfile_caching08_NoChanges.tsv --outdir test/ --max-dist 1 --input-cache test/testfile.json')
     expected_file = 'test/expected_clusters_caching08_dist1.tsv'
     output_file = 'test/clusters.tsv'
