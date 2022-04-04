@@ -38,23 +38,23 @@ breakfast/src/breakfast.py --input-file genomic_profiles.tsv --max-dist 1 --min-
 
 | Parameter              | Type    	| Required | Default 	| Description                                |           
 |----------------------- |---------	|----------|----------|------------------------------------------  |
-| --input-file           | String     	|TRUE	     | '../input/covsonar/rki-2021-05-19-minimal.tsv.gz'    	| Path of the input file (in tsv format)     |
-| --max-dist              | Integer  	|FALSE	     | 1     	| Two sequences will be grouped together, if their pairwise edit distance does not exceed this threshold |
-| --min-cluster-size  | Integer  	|FALSE      | 2     	| Minimum number of sequences a cluster needs to include to be defined in the result file      |
-| --id-col    | String 	|FALSE     | 'accession'      	| Name of the sequence identifier column of the input file          |
-| --clust-col              | String 	|FALSE     | 'dna_profile'      | Name of the mutation profile column of the input file         |
-| --var-type              | String 	|FALSE     | 'DNA'       | Specify if DNA or AA substitutions are used for the mutation profiles         |
-| --sep              | String 	|FALSE     | '\t'      | Input file separator       |
-|  --sep2              | String 	|FALSE     | '  '      | Secondary clustering column separator (between each mutation)        |
-| --outdir              | String 	|FALSE     | 'output/'       | Path of output directory        |
-| --trim-start               | Integer 	|FALSE     |264       | Bases to trim from the beginning         |
-| --trim-end               | Integer 	|FALSE     | 228       | Bases to trim from the end         |
-| --reference-length              | Integer 	|FALSE     | 29903      | Length of reference genome (defaults to NC_045512.2)        |
-| --skip-del               | Bool 	|FALSE     | TRUE       | Deletions will be skipped for calculating the pairwise distance of your input sequences.|
-| --skip-ins               | Bool 	|FALSE     | TRUE       | Insertions will be skipped for calculating the pairwise distance of your input sequences.         |
-| --input-cache           | Integer 	|FALSE     | None   | Path to import results from previous run as pickle file. Only new sequences will be used for distance matrix computation to reduce the runtime. If none is given, the complete dataset will be used for computing the pairwise distances via sparse matrix computation        |
-| --output-cache              | String 	|FALSE     | None       | Path to export results as pickle file. Results can be saved and used in the next run to reduce the runtime.       |
-| --help                   | N/A     	|FALSE	   | N/A     	| Show this help message and exit            |
-| --version                | N/A     	|FALSE	   | N/A     	| Show version and exit            |
+| --input-file           | String     	|✅	     | 'genomic_profiles.tsv.gz'    	| Path of the input file (in tsv format)     |
+| --max-dist              | Integer  	|	     | 1     	| Two sequences will be grouped together, if their pairwise edit distance does not exceed this threshold |
+| --min-cluster-size  | Integer  	|      | 2     	| Minimum number of sequences a cluster needs to include to be defined in the result file      |
+| --id-col    | String 	|     | 'accession'      	| Name of the sequence identifier column of the input file          |
+| --clust-col              | String 	|     | 'dna_profile'      | Name of the mutation profile column of the input file         |
+| --var-type              | String 	|     | 'DNA'       | Specify if DNA or AA substitutions are used for the mutation profiles         |
+| --sep              | String 	|     | '\t'      | Input file separator       |
+|  --sep2              | String 	|     | '  '      | Secondary clustering column separator (between each mutation)        |
+| --outdir              | String 	|     | 'output/'       | Path of output directory        |
+| --trim-start               | Integer 	|     |264       | Bases to trim from the beginning         |
+| --trim-end               | Integer 	|     | 228       | Bases to trim from the end         |
+| --reference-length              | Integer 	|     | 29903      | Length of reference genome (defaults to NC_045512.2)        |
+| --skip-del               | Bool 	|     | TRUE       | Deletions will be skipped for calculating the pairwise distance of your input sequences.|
+| --skip-ins               | Bool 	|     | TRUE       | Insertions will be skipped for calculating the pairwise distance of your input sequences.         |
+| --input-cache           | Integer 	|     | None   | Path to import results from previous run as pickle file. Only new sequences will be used for distance matrix computation to reduce the runtime. If none is given, the complete dataset will be used for computing the pairwise distances via sparse matrix computation        |
+| --output-cache              | String 	|     | None       | Path to export results as pickle file. Results can be saved and used in the next run to reduce the runtime.       |
+| --help                   | N/A     	|	   | N/A     	| Show this help message and exit            |
+| --version                | N/A     	|	   | N/A     	| Show version and exit            |
 
 
