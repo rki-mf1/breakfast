@@ -305,7 +305,7 @@ def main():
     parser.add_argument("--version", action="version", version="%(prog)s " + VERSION)
 
     parser.set_defaults(
-        input_file="../input/covsonar/rki-2021-05-19-minimal.tsv.gz",
+        input_file="genomic_profiles.tsv.gz",
         input_cache=None,
         output_cache=None,
         id_col="accession",
