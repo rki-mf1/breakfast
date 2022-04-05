@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 
 import argparse
 import gzip
@@ -97,8 +97,8 @@ def construct_sub_mat(meta, args):
         if isinstance(subt, float):
             d = []
         else:
-            if subt.find(args.sep2) != -1:
-                d = subt.split(args.sep2)
+            if subt.find(" ") != -1:
+                d = subt.split(" ")
             else:
                 d = [subt]
         for term in d:
