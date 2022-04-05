@@ -20,6 +20,17 @@ conda env create -n breakfast -f breakfast/envs/sc2-breakfast.yml
 
 ## Example Commandline Usage
 
+### Simple test run
+```
+conda activate breakfast
+breakfast/src/breakfast.py \
+   --input-file breakfast/test/testfile.tsv  \
+   --max-dist 1 \
+   --outdir test-run/
+```
+You will find your results in `test-run/cluster.tsv`, which should be identical to `breakfast/test/expected_clusters_dist1.tsv`
+
+
 ### 1) covSonar + BREAKFAST
 Sequence processing with [covSonar](https://gitlab.com/s.fuchs/covsonar)
 ```
@@ -55,14 +66,17 @@ nextclade \
 Alternatively, you can also use [Nextclade Web](https://clades.nextstrain.org/) to process your fasta and export the genomic profile as "nextclade.tsv".
 
 
-Since the input tsv of Nextclade  look a little different from the covSonar tsv, you need to specify the additional parameters `--id-col`, `--clust-col` and `--sep2` for identifying the correct columns.
 
-Clustering with a maximum SNP-distance of 1 and excluding clusters below a size of 5 sequences
+
+
+
+
+Clustering with a maximum SNP-distance of 1 and excluding clusters below a size of 5 sequences. Since the input tsv of Nextclade looks a little different from the covSonar tsv, you need to specify the additional parameters `--id-col`, `--clust-col` and `--sep2` for identifying the correct columns.
 
 ```
 conda activate breakfast
 breakfast/src/breakfast.py \
-   --input-file nextclade.tsv \
+   --input-file output/nextclade.tsv \
    --max-dist 1 \
    --min-cluster-size 5 \
    --id-col "seqName" \
