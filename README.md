@@ -1,6 +1,6 @@
 # BREAKFAST - FAST outBREAK detection and sequence clustering
 
-`BREAKFAST` is a simple and fast script developed for clustering SARS-CoV-2 genomes using precalculated sequence features (e.g. nucleotide substitutions) from [covSonar](https://gitlab.com/s.fuchs/covsonar). 
+`BREAKFAST` is a simple and fast script developed for clustering SARS-CoV-2 genomes using precalculated sequence features (e.g. nucleotide substitutions) from [covSonar](https://gitlab.com/s.fuchs/covsonar) or [Nextclade](https://clades.nextstrain.org/). 
 
 **This project is under development and in experimental stage**
 
@@ -19,8 +19,9 @@ conda env create -n breakfast -f breakfast/envs/sc2-breakfast.yml
 ```
 
 ## Example Commandline Usage
-Sequence processing with [covSonar](https://gitlab.com/s.fuchs/covsonar)
 
+### 1) covSonar + BREAKFAST
+Sequence processing with [covSonar](https://gitlab.com/s.fuchs/covsonar)
 ```
 conda activate sonar
 covsonar/sonar.py add -f genomes.fasta --db mydb --cpus 8
@@ -28,11 +29,48 @@ covsonar/sonar.py match --tsv --db mydb > genomic_profiles.tsv
 ```
 
 Clustering with a maximum SNP-distance of 1 and excluding clusters below a size of 5 sequences
+```
+conda activate breakfast
+breakfast/src/breakfast.py \
+   --input-file genomic_profiles.tsv \
+   --max-dist 1 \
+   --min-cluster-size 5 \
+   --outdir covsonar-breakfast-results/
+```
+
+### 2) Nextclade + BREAKFAST
+Sequence processing with [Nextclade CLI](https://clades.nextstrain.org/). 
+```
+conda activate nextclade
+nextclade dataset get --name 'sars-cov-2' --output-dir 'data/sars-cov-2'
+nextclade \
+   --in-order \
+   --input-fasta genomes.fasta \
+   --input-dataset data/sars-cov-2 \
+   --output-tsv output/nextclade.tsv \
+   --output-tree output/nextclade.auspice.json \
+   --output-dir output/ \
+   --output-basename nextclade
+```
+Alternatively, you can also use [Nextclade Web](https://clades.nextstrain.org/) to process your fasta and export the genomic profile as "nextclade.tsv".
+
+
+Since the input tsv of Nextclade  look a little different from the covSonar tsv, you need to specify the additional parameters `--id-col`, `--clust-col` and `--sep2` for identifying the correct columns.
+
+Clustering with a maximum SNP-distance of 1 and excluding clusters below a size of 5 sequences
 
 ```
 conda activate breakfast
-breakfast/src/breakfast.py --input-file genomic_profiles.tsv --max-dist 1 --min-cluster-size 5
+breakfast/src/breakfast.py \
+   --input-file nextclade.tsv \
+   --max-dist 1 \
+   --min-cluster-size 5 \
+   --id-col "seqName" \
+   --clust-col "substitutions" \
+   --sep2 "," \
+   --outdir nextclade-breakfast-results/
 ```
+
 
 ## Parameter description
 
