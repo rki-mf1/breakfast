@@ -52,7 +52,7 @@ breakfast/src/breakfast.py \
 ### 2) Nextclade + BREAKFAST
 Sequence processing with [Nextclade CLI](https://clades.nextstrain.org/). 
 ```
-conda activate nextclade
+conda install -c bioconda nextclade
 nextclade dataset get --name 'sars-cov-2' --output-dir 'data/sars-cov-2'
 nextclade \
    --in-order \
