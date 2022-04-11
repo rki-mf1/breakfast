@@ -8,14 +8,39 @@ import numpy as np
 cimport numpy as np
 from cython cimport floating
 from cython.parallel cimport prange
+from cython.parallel cimport parallel
 from libc.math cimport fabs
 
+import os
+cimport openmp
+from joblib import cpu_count
 
 #TODO: https://cython.readthedocs.io/en/latest/src/userguide/parallelism.html 
-from sklearn.utils._openmp_helpers import _openmp_effective_n_threads
+cpdef _openmp_effective_n_threads(n_threads=None):
+    #cdef int num_threads
+    #cdef int _openmp_thread_num() nogil
+    openmp.omp_set_dynamic(1)
+    if n_threads == 0:
+        raise ValueError("n_threads = 0 is invalid")
+
+    IF True:
+        if os.getenv("OMP_NUM_THREADS"):
+            # Fall back to user provided number of threads making it possible
+            # to exceed the number of cpus.
+            max_n_threads = openmp.omp_get_max_threads()
+        else:
+            max_n_threads = min(openmp.omp_get_max_threads(), cpu_count())
+
+        if n_threads is None:
+            return max_n_threads
+        elif n_threads < 0:
+            return max(1, max_n_threads + n_threads + 1)
+        return n_threads
+    ELSE:
+        # OpenMP disabled at build-time => sequential mode
+        return 1
 
 np.import_array()
-
 
 def _chi2_kernel_fast(floating[:, :] X,
                       floating[:, :] Y,
