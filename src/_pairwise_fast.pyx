@@ -8,21 +8,15 @@ import numpy as np
 cimport numpy as np
 from cython cimport floating
 from cython.parallel cimport prange
-from cython.parallel cimport parallel
 from libc.math cimport fabs
 
 import os
 cimport openmp
 from joblib import cpu_count
 
-#TODO: https://cython.readthedocs.io/en/latest/src/userguide/parallelism.html 
 cpdef _openmp_effective_n_threads(n_threads=None):
-    #cdef int num_threads
-    #cdef int _openmp_thread_num() nogil
-    openmp.omp_set_dynamic(1)
     if n_threads == 0:
         raise ValueError("n_threads = 0 is invalid")
-
     IF True:
         if os.getenv("OMP_NUM_THREADS"):
             # Fall back to user provided number of threads making it possible
@@ -65,7 +59,7 @@ def _chi2_kernel_fast(floating[:, :] X,
 
 def _sparse_manhattan(floating[::1] X_data, int[:] X_indices, int[:] X_indptr,
                       floating[::1] Y_data, int[:] Y_indices, int[:] Y_indptr,
-                      double[:, ::1] D):
+                      double[:, ::1] D, double max_dist):
     """Pairwise L1 distances for CSR matrices.
     Usage:
     >>> D = np.zeros(X.shape[0], Y.shape[0])
@@ -104,29 +98,30 @@ def _sparse_manhattan(floating[::1] X_data, int[:] X_indices, int[:] X_indptr,
             Y_indptr_end = Y_indptr[py + 1]
             i = X_indptr[px]
             j = Y_indptr[py]
-            d = 0.0
-            while i < X_indptr_end and j < Y_indptr_end:
-                ix = X_indices[i]
-                iy = Y_indices[j]
-
-                if ix == iy:
-                    d = d + fabs(X_data[i] - Y_data[j])
-                    i = i + 1
-                    j = j + 1
-                elif ix < iy:
-                    d = d + fabs(X_data[i])
-                    i = i + 1
-                else:
-                    d = d + fabs(Y_data[j])
-                    j = j + 1
-
-            if i == X_indptr_end:
-                while j < Y_indptr_end:
-                    d = d + fabs(Y_data[j])
-                    j = j + 1
+            if ((Y_indptr_end - j) - (X_indptr_end - i) > max_dist):
+                d = 1.0 + max_dist
             else:
-                while i < X_indptr_end:
-                    d = d + fabs(X_data[i])
-                    i = i + 1
+                d = 0.0
+                while i < X_indptr_end and j < Y_indptr_end:
+                    ix = X_indices[i]
+                    iy = Y_indices[j]
+                    if ix == iy:
+                        d = d + fabs(X_data[i] - Y_data[j])
+                        i = i + 1
+                        j = j + 1
+                    elif ix < iy:
+                        d = d + fabs(X_data[i])
+                        i = i + 1
+                    else:
+                        d = d + fabs(Y_data[j])
+                        j = j + 1
 
+                if i == X_indptr_end:
+                    while j < Y_indptr_end:
+                        d = d + fabs(Y_data[j])
+                        j = j + 1
+                else:
+                    while i < X_indptr_end:
+                        d = d + fabs(X_data[i])
+                        i = i + 1
             D[px, py] = d
