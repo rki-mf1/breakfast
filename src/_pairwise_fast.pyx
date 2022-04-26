@@ -59,7 +59,7 @@ def _chi2_kernel_fast(floating[:, :] X,
 
 def _sparse_manhattan(floating[::1] X_data, int[:] X_indices, int[:] X_indptr,
                       floating[::1] Y_data, int[:] Y_indices, int[:] Y_indptr,
-                      double[:, ::1] D, double max_dist):
+                      double[:, ::1] D, double max_dist, double[:] mut_len_X, double[:] mut_len_Y):
     """Pairwise L1 distances for CSR matrices.
     Usage:
     >>> D = np.zeros(X.shape[0], Y.shape[0])
@@ -95,12 +95,12 @@ def _sparse_manhattan(floating[::1] X_data, int[:] X_indices, int[:] X_indptr,
     for px in prange(m, nogil=True, num_threads=num_threads):
         X_indptr_end = X_indptr[px + 1]
         for py in range(n):
-            Y_indptr_end = Y_indptr[py + 1]
-            i = X_indptr[px]
-            j = Y_indptr[py]
-            if ((Y_indptr_end - j) - (X_indptr_end - i) > max_dist):
+            if (mut_len_X[px] - mut_len_Y[py] > max_dist):
                 d = 1.0 + max_dist
             else:
+                Y_indptr_end = Y_indptr[py + 1]
+                i = X_indptr[px]
+                j = Y_indptr[py]
                 d = 0.0
                 while i < X_indptr_end and j < Y_indptr_end:
                     ix = X_indices[i]
