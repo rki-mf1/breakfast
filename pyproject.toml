@@ -1,0 +1,39 @@
+[tool.poetry]
+name = "breakfast"
+version = "0.3.0"
+description = "breakfast: fast putative outbreak cluster and infection chain detection using SNPs"
+authors = ["Matthew Huska <HuskaM@rki.de>", "Denis Beslic <BeslicD@rki.de>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/rki-mf1/breakfast"
+repository = "https://github.com/rki-mf1/breakfast"
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.11"
+networkx = "^2.8"
+pandas = "^1.4.2"
+scikit-learn = "^1.0.2"
+numpy = "^1.22.3"
+scipy = "^1.8.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.1.2"
+coverage = {extras = ["toml"], version = "^6.3.2"}
+pytest-cov = "^3.0.0"
+
+[tool.poetry.scripts]
+breakfast = "breakfast.console:main"
+
+[tool.coverage.paths]
+source = ["src", "*/site-packages"]
+
+[tool.coverage.run]
+branch = true
+source = ["breakfast"]
+
+[tool.coverage.report]
+show_missing = true
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
