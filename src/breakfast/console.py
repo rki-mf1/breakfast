@@ -14,21 +14,21 @@ def aa_no_trim_skip(ctx, param, value):
         raise click.BadParameter("Can not skip insertions and deletions in non-DNA features")
 
 
-@click.command()
+@click.command(context_settings={'show_default': True})
 @click.option("--input-file", type=click.Path(exists=True), help="Input file", required=True)
-@click.option("--outdir", default="output", help="Output directory for all output files")
-@click.option("--input-cache", help="Input cached pickle file from previous run")
-@click.option("--output-cache", help="Path to Output cached pickle file")
-@click.option("--id-col", default="accession", help="Column with the sequence identifier")
-@click.option("--clust-col", default="dna_profile", help="Metadata column to cluster")
-@click.option("--var-type", default="dna", help="Type of variants (dna or aa, default = 'dna')", callback=aa_no_trim_skip)
-@click.option("--sep2", default=" ", help="Secondary clustering column separator (between each mutation)")
 @click.option("--sep", default="\t", help="Input file separator")
+@click.option("--outdir", type=click.Path(), default="output", help="Output directory for all output files")
 @click.option("--max-dist", type=int, default=1, help="Maximum parwise distance")
 @click.option("--min-cluster-size", type=int, default=2, help="Minimum cluster size")
+@click.option("--input-cache", type=click.Path(), help="Input cached pickle file from previous run")
+@click.option("--output-cache", type=click.Path(), help="Path to Output cached pickle file")
+@click.option("--id-col", default="accession", help="Column with the sequence identifier")
+@click.option("--clust-col", default="dna_profile", help="Metadata column to cluster")
+@click.option("--var-type", type=click.Choice(['dna', 'aa']), default="dna", help="Type of variants", callback=aa_no_trim_skip)
+@click.option("--sep2", default=" ", help="Secondary clustering column separator (between each mutation)")
 @click.option("--trim-start", type=int, default=264, help="Bases to trim from the beginning (0 = disable)")
 @click.option("--trim-end", type=int, default=228, help="Bases to trim from the end (0 = disable)")
-@click.option("--reference-length", type=int, default=29903, help="Length of reference genome (defaults to NC_045512.2 length = 29903)")
+@click.option("--reference-length", type=int, default=29903, help="Length of reference genome (defaults to NC_045512.2 length)")
 @click.option("--skip-del", is_flag=True, default=True, help="Skip deletions")
 @click.option("--skip-ins", is_flag=True, default=True, help="Skip insertions")
 @click.version_option(version=__version__)
@@ -86,7 +86,7 @@ def cli(input_file,
                                                   trim_end,
                                                   reference_length)
 
-    print(f"Number of duplicates: {meta["feature"].duplicated().sum()}")
+    print(f"Number of duplicates: {meta['feature'].duplicated().sum()}")
 
     # Group IDs with identical sequences together
     meta_nodups = meta.groupby("feature", as_index=False, sort=False).agg(
