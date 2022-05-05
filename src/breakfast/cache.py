@@ -2,15 +2,15 @@ import math
 import numpy as np
 import pandas as pd
 
-def validate(cache, args, version):
+def validate(cache, max_dist, version):
     max_dist_cached = cache["max_dist"]
 
-    if args.max_dist != max_dist_cached:
+    if max_dist != max_dist_cached:
         print(
             f"WARNING: Cached results were created using a differnt max-dist paramter"
         )
         print(
-            f"Current max-dist parameter: {args.max_dist} \n Cached max-dist parameter: {max_dist_cached}"
+            f"Current max-dist parameter: {max_dist} \n Cached max-dist parameter: {max_dist_cached}"
         )
         raise UnboundLocalError()
 
