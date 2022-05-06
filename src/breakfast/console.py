@@ -13,6 +13,8 @@ def aa_no_trim_skip(ctx, param, value):
     if value != "dna" and (ctx.params['skip_ins'] or ctx.params['skip_del']):
         raise click.BadParameter("Can not skip insertions and deletions in non-DNA features")
 
+    return value
+
 
 @click.command(context_settings={'show_default': True})
 @click.option("--input-file", type=click.Path(exists=True), help="Input file", required=True)
@@ -32,23 +34,23 @@ def aa_no_trim_skip(ctx, param, value):
 @click.option("--skip-del", is_flag=True, default=True, help="Skip deletions")
 @click.option("--skip-ins", is_flag=True, default=True, help="Skip insertions")
 @click.version_option(version=__version__)
-def cli(input_file,
-        outdir,
-        input_cache,
-        output_cache,
-        id_col,
-        clust_col,
-        var_type,
-        sep,
-        sep2,
-        max_dist,
-        min_cluster_size,
-        trim_start,
-        trim_end,
-        reference_length,
-        skip_del,
-        skip_ins,
-        ):
+def main(input_file,
+         outdir,
+         input_cache,
+         output_cache,
+         id_col,
+         clust_col,
+         var_type,
+         sep,
+         sep2,
+         max_dist,
+         min_cluster_size,
+         trim_start,
+         trim_end,
+         reference_length,
+         skip_del,
+         skip_ins,
+         ):
 
     print("Clustering sequences")
     print(f"  Input file = {input_file}")
@@ -95,23 +97,23 @@ def cli(input_file,
     print(f"Number of unique sequences: {meta_nodups.shape[0]}")
 
     if max_dist == 0:
-        meta_withoutDUPS = breakfast.calc_without_sparse_matrix(meta, min_cluster_size)
+        meta_nodups = breakfast.calc_without_sparse_matrix(meta_nodups, min_cluster_size)
     else:
-        meta_withoutDUPS = breakfast.calc_sparse_matrix(meta,
-                                                        sep2,
-                                                        max_dist,
-                                                        min_cluster_size,
-                                                        input_cache,
-                                                        output_cache)
+        meta_nodups = breakfast.calc_sparse_matrix(meta_nodups,
+                                                   sep2,
+                                                   max_dist,
+                                                   min_cluster_size,
+                                                   input_cache,
+                                                   output_cache)
 
     # Assign correct ID
     meta_clusterid = []
     meta_accession = []
-    accession_list = meta_withoutDUPS["id"].tolist()
-    cluster_ids = meta_withoutDUPS["cluster_id"].tolist()
+    accession_list = meta_nodups["id"].tolist()
+    cluster_ids = meta_nodups["cluster_id"].tolist()
     for accession, clust_id in zip(accession_list, cluster_ids):
-        for seq in accession:
-            meta_accession.append(seq)
+        for seq_id in accession:
+            meta_accession.append(seq_id)
             meta_clusterid.append(clust_id)
     meta_out = pd.DataFrame()
     meta_out["id"] = meta_accession
@@ -121,6 +123,8 @@ def cli(input_file,
     meta_out = meta_out.set_index("id")
     meta_out = meta_out.reindex(index=meta["id"])
     meta_out = meta_out.reset_index()
+
+    assert meta_out.shape[0] == meta.shape[0]
 
     if not os.path.exists(outdir):
         os.makedirs(outdir)

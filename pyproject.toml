@@ -23,7 +23,7 @@ coverage = {extras = ["toml"], version = "^6.3.2"}
 pytest-cov = "^3.0.0"
 
 [tool.poetry.scripts]
-breakfast = "breakfast.console:cli"
+breakfast = "breakfast.console:main"
 
 [tool.coverage.paths]
 source = ["src", "*/site-packages"]
