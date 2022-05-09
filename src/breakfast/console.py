@@ -1,7 +1,4 @@
-import os
-
 import click
-import pandas as pd
 
 from . import breakfast, __version__
 
@@ -69,66 +66,29 @@ def main(input_file,
     print(f"  Input cache file = {input_cache}")
     print(f"  Output cache file = {output_cache}")
 
-    meta = pd.read_table(
-        input_file,
-        usecols=[id_col, clust_col],
-        dtype={id_col: str, clust_col: str},
-        sep=sep,
-    ).rename(columns={id_col: "id", clust_col: "feature"})
-    print(f"Number of sequences: {meta.shape[0]}")
+    meta = breakfast.read_input(input_file,
+                                sep,
+                                id_col,
+                                clust_col)
 
-    # Remove Indels from mutation profiles before grouping sequences together
-    if skip_del or skip_ins or (trim_start > 0) or (trim_end > 0):
-        meta["feature"] = breakfast.remove_indels(meta["feature"],
-                                                  sep2,
-                                                  var_type,
-                                                  skip_ins,
-                                                  skip_del,
-                                                  trim_start,
-                                                  trim_end,
-                                                  reference_length)
+    meta["feature"] = breakfast.filter_features(meta["feature"],
+                                                sep2,
+                                                var_type,
+                                                skip_ins,
+                                                skip_del,
+                                                trim_start,
+                                                trim_end,
+                                                reference_length)
 
-    print(f"Number of duplicates: {meta['feature'].duplicated().sum()}")
+    meta_nodups = breakfast.collapse_duplicates(meta)
 
-    # Group IDs with identical sequences together
-    meta_nodups = meta.groupby("feature", as_index=False, sort=False).agg(
-        {"id": lambda x: tuple(x), "feature": "first"}
-    )
-    print(f"Number of unique sequences: {meta_nodups.shape[0]}")
+    meta_clustered = breakfast.cluster(meta_nodups,
+                                       sep2,
+                                       max_dist,
+                                       min_cluster_size,
+                                       input_cache,
+                                       output_cache)
 
-    if max_dist == 0:
-        meta_nodups = breakfast.calc_without_sparse_matrix(meta_nodups, min_cluster_size)
-    else:
-        meta_nodups = breakfast.calc_sparse_matrix(meta_nodups,
-                                                   sep2,
-                                                   max_dist,
-                                                   min_cluster_size,
-                                                   input_cache,
-                                                   output_cache)
-
-    # Assign correct ID
-    meta_clusterid = []
-    meta_accession = []
-    accession_list = meta_nodups["id"].tolist()
-    cluster_ids = meta_nodups["cluster_id"].tolist()
-    for accession, clust_id in zip(accession_list, cluster_ids):
-        for seq_id in accession:
-            meta_accession.append(seq_id)
-            meta_clusterid.append(clust_id)
-    meta_out = pd.DataFrame()
-    meta_out["id"] = meta_accession
-    meta_out["cluster_id"] = meta_clusterid
-
-    # Sort according to input file
-    meta_out = meta_out.set_index("id")
-    meta_out = meta_out.reindex(index=meta["id"])
-    meta_out = meta_out.reset_index()
-
-    assert meta_out.shape[0] == meta.shape[0]
-
-    if not os.path.exists(outdir):
-        os.makedirs(outdir)
-
-    meta_out[["id", "cluster_id"]].to_csv(
-        os.path.join(outdir, "clusters.tsv"), sep="\t", index=False
-    )
+    breakfast.write_output(meta_clustered,
+                           meta,
+                           outdir)

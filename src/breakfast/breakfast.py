@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import gzip
+import os
 import re
 from itertools import chain
 
@@ -13,6 +14,74 @@ from scipy.sparse import csr_matrix
 from sklearn.metrics import pairwise_distances_chunked
 
 from . import cache as ca, __version__
+
+
+def read_input(input_file, sep, id_col, feature_col):
+    meta = pd.read_table(
+        input_file,
+        usecols=[id_col, feature_col],
+        dtype={id_col: str, feature_col: str},
+        sep=sep,
+    ).rename(columns={id_col: "id", feature_col: "feature"})
+    print(f"Number of sequences: {meta.shape[0]}")
+    return meta
+
+
+def write_output(meta_nodups, meta_original, outdir):
+    # Assign correct ID
+    meta_clusterid = []
+    meta_accession = []
+    accession_list = meta_nodups["id"].tolist()
+    cluster_ids = meta_nodups["cluster_id"].tolist()
+    for accession, clust_id in zip(accession_list, cluster_ids):
+        for seq_id in accession:
+            meta_accession.append(seq_id)
+            meta_clusterid.append(clust_id)
+    meta_out = pd.DataFrame()
+    meta_out["id"] = meta_accession
+    meta_out["cluster_id"] = meta_clusterid
+
+    # Sort according to input file
+    meta_out = meta_out.set_index("id")
+    meta_out = meta_out.reindex(index=meta_original["id"])
+    meta_out = meta_out.reset_index()
+
+    assert meta_out.shape[0] == meta_original.shape[0]
+
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    meta_out[["id", "cluster_id"]].to_csv(
+        os.path.join(outdir, "clusters.tsv"), sep="\t", index=False
+    )
+
+
+def collapse_duplicates(meta):
+    print(f"Number of duplicates: {meta['feature'].duplicated().sum()}")
+    # Group IDs with identical sequences together
+    meta_nodups = meta.groupby("feature", as_index=False, sort=False).agg(
+        {"id": lambda x: tuple(x), "feature": "first"}
+    )
+    print(f"Number of unique sequences: {meta_nodups.shape[0]}")
+    return meta_nodups
+
+
+def cluster(meta_nodups,
+            sep2,
+            max_dist,
+            min_cluster_size,
+            input_cache,
+            output_cache):
+    if max_dist == 0:
+        meta_nodups = calc_without_sparse_matrix(meta_nodups, min_cluster_size)
+    else:
+        meta_nodups = calc_sparse_matrix(meta_nodups,
+                                         sep2,
+                                         max_dist,
+                                         min_cluster_size,
+                                         input_cache,
+                                         output_cache)
+    return meta_nodups
 
 
 # Merge connected components
@@ -39,7 +108,10 @@ def _to_edges(l):
         last = current
 
 
-def remove_indels(features, feature_sep, feature_type, skip_ins, skip_del, trim_start, trim_end, reference_length):
+def filter_features(features, feature_sep, feature_type, skip_ins, skip_del, trim_start, trim_end, reference_length):
+    if skip_del or skip_ins or (trim_start > 0) or (trim_end > 0):
+        return features
+
     filtered_features = []
     insertion = re.compile(".*[A-Z][A-Z]$")
     for feature in features:
@@ -78,8 +150,7 @@ def remove_indels(features, feature_sep, feature_type, skip_ins, skip_del, trim_
 
 
 def construct_sub_mat(features, feature_sep):
-    print("Convert list of substitutions into a sparse matrix")
-    insertion = re.compile(".*[A-Z][A-Z]$")
+    """Convert list of substitutions into a sparse matrix"""
     indptr = [0]
     indices = []
     data = []
@@ -118,7 +189,8 @@ def calc_sparse_matrix(meta,
         feature_map = ca.map_features(cache["meta"]["feature"], meta["feature"])
         neigh_cache_updated = ca.update_neighbours(cache["neigh"], feature_map)
 
-        # construct sub_mat of complete dataset and sub_mat of only new sequences compared to cached meta
+        # construct sub_mat of complete dataset and sub_mat of only new
+        # sequences compared to cached meta
         idx_only_new = ca.find_new(feature_map)
         select_ind = np.array(idx_only_new)
         sub_mat = construct_sub_mat(meta["feature"], feature_sep)
@@ -142,9 +214,9 @@ def calc_sparse_matrix(meta,
         neigh = neigh_cache_updated + neigh_new
 
     except (UnboundLocalError, TypeError) as e:
-        print(
-            "Imported cached results are not available. Distance matrix of complete dataset will be calculated."
-        )
+        print(("Imported cached results are not available. "
+               "Distance matrix of complete dataset will be calculated."
+               ))
 
         sub_mat = construct_sub_mat(meta["feature"], feature_sep)
 
@@ -195,7 +267,6 @@ def calc_sparse_matrix(meta,
     return meta
 
 
-# TODO: Caching results for max-dist 0
 def calc_without_sparse_matrix(meta, min_cluster_size):
     print("Skip sparse matrix calculation since max-dist = 0")
     clusters = list(range(0, len(meta)))
