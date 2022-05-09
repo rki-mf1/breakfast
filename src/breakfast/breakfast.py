@@ -66,28 +66,20 @@ def collapse_duplicates(meta):
     return meta_nodups
 
 
-def cluster(meta_nodups,
-            sep2,
-            max_dist,
-            min_cluster_size,
-            input_cache,
-            output_cache):
+def cluster(meta_nodups, sep2, max_dist, min_cluster_size, input_cache, output_cache):
     if max_dist == 0:
         meta_nodups = calc_without_sparse_matrix(meta_nodups, min_cluster_size)
     else:
-        meta_nodups = calc_sparse_matrix(meta_nodups,
-                                         sep2,
-                                         max_dist,
-                                         min_cluster_size,
-                                         input_cache,
-                                         output_cache)
+        meta_nodups = calc_sparse_matrix(
+            meta_nodups, sep2, max_dist, min_cluster_size, input_cache, output_cache
+        )
     return meta_nodups
 
 
 # Merge connected components
-def _to_graph(l):
+def _to_graph(neighbour_list):
     G = networkx.Graph()
-    for part in l:
+    for part in neighbour_list:
         # each sublist is a bunch of nodes
         G.add_nodes_from(part)
         # it also imlies a number of edges:
@@ -95,12 +87,12 @@ def _to_graph(l):
     return G
 
 
-def _to_edges(l):
+def _to_edges(clustered_ids):
     """
     treat `l` as a Graph and returns it's edges
     to_edges(['a','b','c','d']) -> [(a,b), (b,c),(c,d)]
     """
-    it = iter(l)
+    it = iter(clustered_ids)
     last = next(it)
 
     for current in it:
@@ -108,30 +100,31 @@ def _to_edges(l):
         last = current
 
 
-def filter_features(features, feature_sep, feature_type, skip_ins, skip_del, trim_start, trim_end, reference_length):
+def filter_features(
+    features,
+    feature_sep,
+    feature_type,
+    skip_ins,
+    skip_del,
+    trim_start,
+    trim_end,
+    reference_length,
+):
     if not (skip_del or skip_ins or (trim_start > 0) or (trim_end > 0)):
         return features
 
     filtered_features = []
     insertion = re.compile(".*[A-Z][A-Z]$")
     for feature in features:
-        if isinstance(feature, float):
-            d = []
-        else:
-            if feature.find(feature_sep) != -1:
-                d = feature.split(feature_sep)
-            else:
-                d = [feature]
+        d = feature.split(feature_sep)
         new_d = []
         for term in d:
             if feature_type == "dna":
-                if term.startswith("del"):
+                if term.startswith("del:"):
                     if skip_del:
                         continue
                     pos = int(term.split(":")[1])
-                    if ((trim_start is not None) and (pos <= trim_start)) or (
-                        (trim_end is not None) and (pos >= (reference_length - trim_end))
-                    ):
+                    if (pos <= trim_start) or (pos >= (reference_length - trim_end)):
                         continue
                 elif skip_ins and insertion.match(term) is not None:
                     continue
@@ -139,10 +132,7 @@ def filter_features(features, feature_sep, feature_type, skip_ins, skip_del, tri
                     # Blindly remove reference and alt NT, leaving the position. Then
                     # check if it is in the regions we want to trim away
                     pos = int(term.translate(str.maketrans("", "", "ACGTN")))
-                    if ((trim_start is not None) and (pos <= trim_start)) or (
-                        (trim_end is not None)
-                        and (pos >= (reference_length - trim_end))
-                    ):
+                    if (pos <= trim_start) or (pos >= (reference_length - trim_end)):
                         continue
             new_d.append(term)
         filtered_features.append(" ".join(new_d))
@@ -172,12 +162,9 @@ def construct_sub_mat(features, feature_sep):
     return sub_mat
 
 
-def calc_sparse_matrix(meta,
-                       feature_sep,
-                       max_dist,
-                       min_cluster_size,
-                       input_cache,
-                       output_cache):
+def calc_sparse_matrix(
+    meta, feature_sep, max_dist, min_cluster_size, input_cache, output_cache
+):
     # IMPORT RESULTS FROM PREVIOUS RUN
     try:
         with gzip.open(input_cache, "rb") as f:
@@ -213,10 +200,13 @@ def calc_sparse_matrix(meta,
         neigh_new = list(chain.from_iterable(gen))
         neigh = neigh_cache_updated + neigh_new
 
-    except (UnboundLocalError, TypeError) as e:
-        print(("Imported cached results are not available. "
-               "Distance matrix of complete dataset will be calculated."
-               ))
+    except (UnboundLocalError, TypeError):
+        print(
+            (
+                "Imported cached results are not available. "
+                "Distance matrix of complete dataset will be calculated."
+            )
+        )
 
         sub_mat = construct_sub_mat(meta["feature"], feature_sep)
 

@@ -1,17 +1,13 @@
-import math
-import numpy as np
 import pandas as pd
+
 
 def validate(cache, max_dist, version):
     max_dist_cached = cache["max_dist"]
 
     if max_dist != max_dist_cached:
-        print(
-            f"WARNING: Cached results were created using a differnt max-dist paramter"
-        )
-        print(
-            f"Current max-dist parameter: {max_dist} \n Cached max-dist parameter: {max_dist_cached}"
-        )
+        print("WARNING: Cached results were created using a differnt max-dist paramter")
+        print(f"Current max-dist parameter: {max_dist}")
+        print(f"Cached max-dist parameter: {max_dist_cached}")
         raise UnboundLocalError()
 
     version_cached = cache["version"]
@@ -65,19 +61,21 @@ def find_new(fmap):
 
 
 def map_features(cached_feats, new_feats):
-    """Map between the indexes of the cached and new data, based on the features
-    """
+    """Map between the indexes of the cached and new data, based on the features"""
 
-    cached_df = pd.DataFrame({
-                            "idx": range(cached_feats.size),
-                            "feature": cached_feats,
-                            }).set_index("feature")
-    new_df = pd.DataFrame({
-                            "idx": range(new_feats.size),
-                            "feature": new_feats,
-                            }).set_index("feature")
+    cached_df = pd.DataFrame(
+        {
+            "idx": range(cached_feats.size),
+            "feature": cached_feats,
+        }
+    ).set_index("feature")
+    new_df = pd.DataFrame(
+        {
+            "idx": range(new_feats.size),
+            "feature": new_feats,
+        }
+    ).set_index("feature")
 
     feat_map = cached_df.join(new_df, how="outer", lsuffix="_cache", rsuffix="_new")
 
     return feat_map
-

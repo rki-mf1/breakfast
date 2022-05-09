@@ -4,15 +4,15 @@ from . import breakfast, __version__
 
 
 def only_filter_dna(ctx, param, value):
-    if value != "dna" and (ctx.params['trim_start'] != 0 or ctx.params['trim_end'] != 0):
-        raise click.BadParameter("Can not trim non-DNA features")
-
-    if value != "dna" and (ctx.params['skip_ins'] or ctx.params['skip_del']):
-        raise click.BadParameter("Can not skip insertions and deletions in non-DNA features")
-
+    if value != "dna":
+        if ctx.params["trim_start"] != 0 or ctx.params["trim_end"] != 0:
+            raise click.BadParameter("Can not trim non-DNA features")
+        if ctx.params["skip_ins"] or ctx.params["skip_del"]:
+            raise click.BadParameter("Can not skip indels in non-DNA features")
     return value
 
 
+# fmt: off
 @click.command(context_settings={'show_default': True})
 @click.option("--input-file", type=click.Path(exists=True), help="Input file", required=True)
 @click.option("--sep", default="\t", help="Input file separator")
@@ -31,23 +31,25 @@ def only_filter_dna(ctx, param, value):
 @click.option("--skip-del/--no-skip-del", default=True, help="Skip deletions")
 @click.option("--skip-ins/--no-skip-ins", default=True, help="Skip insertions")
 @click.version_option(version=__version__)
-def main(input_file,
-         outdir,
-         input_cache,
-         output_cache,
-         id_col,
-         clust_col,
-         var_type,
-         sep,
-         sep2,
-         max_dist,
-         min_cluster_size,
-         trim_start,
-         trim_end,
-         reference_length,
-         skip_del,
-         skip_ins,
-         ):
+# fmt: on
+def main(
+    input_file,
+    outdir,
+    input_cache,
+    output_cache,
+    id_col,
+    clust_col,
+    var_type,
+    sep,
+    sep2,
+    max_dist,
+    min_cluster_size,
+    trim_start,
+    trim_end,
+    reference_length,
+    skip_del,
+    skip_ins,
+):
 
     print("Clustering sequences")
     print(f"  Input file = {input_file}")
@@ -66,29 +68,23 @@ def main(input_file,
     print(f"  Input cache file = {input_cache}")
     print(f"  Output cache file = {output_cache}")
 
-    meta = breakfast.read_input(input_file,
-                                sep,
-                                id_col,
-                                clust_col)
+    meta = breakfast.read_input(input_file, sep, id_col, clust_col)
 
-    meta["feature"] = breakfast.filter_features(meta["feature"],
-                                                sep2,
-                                                var_type,
-                                                skip_ins,
-                                                skip_del,
-                                                trim_start,
-                                                trim_end,
-                                                reference_length)
+    meta["feature"] = breakfast.filter_features(
+        meta["feature"],
+        sep2,
+        var_type,
+        skip_ins,
+        skip_del,
+        trim_start,
+        trim_end,
+        reference_length,
+    )
 
     meta_nodups = breakfast.collapse_duplicates(meta)
 
-    meta_clustered = breakfast.cluster(meta_nodups,
-                                       sep2,
-                                       max_dist,
-                                       min_cluster_size,
-                                       input_cache,
-                                       output_cache)
+    meta_clustered = breakfast.cluster(
+        meta_nodups, sep2, max_dist, min_cluster_size, input_cache, output_cache
+    )
 
-    breakfast.write_output(meta_clustered,
-                           meta,
-                           outdir)
+    breakfast.write_output(meta_clustered, meta, outdir)

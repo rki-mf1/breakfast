@@ -1,6 +1,6 @@
 [flake8]
 select = BLK,C,E,F,W
-ignore = E203,W503
+ignore = E203,W503,E501
 max-line-length = 88
 max-complexity = 10
 application-import-names = breakfast,tests
