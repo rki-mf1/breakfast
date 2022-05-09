@@ -109,7 +109,7 @@ def _to_edges(l):
 
 
 def filter_features(features, feature_sep, feature_type, skip_ins, skip_del, trim_start, trim_end, reference_length):
-    if skip_del or skip_ins or (trim_start > 0) or (trim_end > 0):
+    if not (skip_del or skip_ins or (trim_start > 0) or (trim_end > 0)):
         return features
 
     filtered_features = []
