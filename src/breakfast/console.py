@@ -3,7 +3,7 @@ import click
 from . import breakfast, __version__
 
 
-def aa_no_trim_skip(ctx, param, value):
+def only_filter_dna(ctx, param, value):
     if value != "dna" and (ctx.params['trim_start'] != 0 or ctx.params['trim_end'] != 0):
         raise click.BadParameter("Can not trim non-DNA features")
 
@@ -23,13 +23,13 @@ def aa_no_trim_skip(ctx, param, value):
 @click.option("--output-cache", type=click.Path(), help="Path to Output cached pickle file")
 @click.option("--id-col", default="accession", help="Column with the sequence identifier")
 @click.option("--clust-col", default="dna_profile", help="Metadata column to cluster")
-@click.option("--var-type", type=click.Choice(['dna', 'aa']), default="dna", help="Type of variants", callback=aa_no_trim_skip)
+@click.option("--var-type", type=click.Choice(['dna', 'aa']), default="dna", help="Type of variants", callback=only_filter_dna)
 @click.option("--sep2", default=" ", help="Secondary clustering column separator (between each mutation)")
 @click.option("--trim-start", type=int, default=264, help="Bases to trim from the beginning (0 = disable)")
 @click.option("--trim-end", type=int, default=228, help="Bases to trim from the end (0 = disable)")
 @click.option("--reference-length", type=int, default=29903, help="Length of reference genome (defaults to NC_045512.2 length)")
-@click.option("--skip-del", is_flag=True, default=True, help="Skip deletions")
-@click.option("--skip-ins", is_flag=True, default=True, help="Skip insertions")
+@click.option("--skip-del/--no-skip-del", default=True, help="Skip deletions")
+@click.option("--skip-ins/--no-skip-ins", default=True, help="Skip insertions")
 @click.version_option(version=__version__)
 def main(input_file,
          outdir,
