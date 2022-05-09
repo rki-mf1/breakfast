@@ -1,6 +1,8 @@
 # BREAKFAST - FAST outBREAK detection and sequence clustering
 
-`BREAKFAST` is a simple and fast script developed for clustering SARS-CoV-2 genomes using precalculated sequence features (e.g. nucleotide substitutions) from [covSonar](https://gitlab.com/s.fuchs/covsonar) or [Nextclade](https://clades.nextstrain.org/). 
+[![Tests](https://github.com/rki-mf1/breakfast/workflows/Tests/badge.svg)](https://github.com/rki-mf1/breakfast/actions?workflow=Tests)
+
+`BREAKFAST` is a simple and fast script developed for clustering SARS-CoV-2 genomes using precalculated sequence features (e.g. nucleotide substitutions) from [covSonar](https://gitlab.com/s.fuchs/covsonar) or [Nextclade](https://clades.nextstrain.org/).
 
 **This project is under development and in experimental stage**
 
@@ -9,7 +11,7 @@
 ## Installation
 
 ### System Dependencies
-BREAKFAST runs under Python 3.9 and later. The base requirements are networkx, pandas, numpy, scikit-learn, and scipy. 
+BREAKFAST runs under Python 3.9 and later. The base requirements are networkx, pandas, numpy, scikit-learn, and scipy.
 
 ### Install using conda
 We recommend using conda for installing all necessary dependencies:
@@ -50,7 +52,7 @@ breakfast/src/breakfast.py \
 ```
 
 ### 2) Nextclade + BREAKFAST
-Sequence processing with [Nextclade CLI](https://clades.nextstrain.org/). 
+Sequence processing with [Nextclade CLI](https://clades.nextstrain.org/).
 ```
 conda install -c bioconda nextclade
 nextclade dataset get --name 'sars-cov-2' --output-dir 'data/sars-cov-2'
@@ -88,7 +90,7 @@ breakfast/src/breakfast.py \
 
 ## Parameter description
 
-| Parameter              | Type    	| Required | Default 	| Description                                |           
+| Parameter              | Type    	| Required | Default 	| Description                                |
 |----------------------- |---------	|----------|----------|------------------------------------------  |
 | --input-file           | String     	|✅	     | 'genomic_profiles.tsv.gz'    	| Path of the input file (in tsv format)     |
 | --max-dist              | Integer  	|	     | 1     	| Two sequences will be grouped together, if their pairwise edit distance does not exceed this threshold |
@@ -108,5 +110,3 @@ breakfast/src/breakfast.py \
 | --output-cache              | String 	|     | None       | Path to export results as pickle file. Results can be saved and used in the next run to reduce the runtime.       |
 | --help                   | N/A     	|	   | N/A     	| Show this help message and exit            |
 | --version                | N/A     	|	   | N/A     	| Show version and exit            |
-
-
