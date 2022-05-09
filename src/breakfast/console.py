@@ -71,8 +71,6 @@ def main(input_file,
                                 id_col,
                                 clust_col)
 
-    print(meta)
-
     meta["feature"] = breakfast.filter_features(meta["feature"],
                                                 sep2,
                                                 var_type,
@@ -90,10 +88,6 @@ def main(input_file,
                                        min_cluster_size,
                                        input_cache,
                                        output_cache)
-
-    print(meta)
-    print(meta_nodups)
-    print(meta_clustered)
 
     breakfast.write_output(meta_clustered,
                            meta,
