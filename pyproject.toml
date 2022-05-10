@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "breakfast"
-version = "0.3.0"
+version = "0.3.1"
 description = "breakfast: fast putative outbreak cluster and infection chain detection using SNPs"
 authors = ["Matthew Huska <HuskaM@rki.de>", "Denis Beslic <BeslicD@rki.de>"]
 license = "MIT"
