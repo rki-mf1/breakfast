@@ -3,7 +3,7 @@ name = "breakfast"
 version = "0.3.1"
 description = "breakfast: fast putative outbreak cluster and infection chain detection using SNPs"
 authors = ["Matthew Huska <HuskaM@rki.de>", "Denis Beslic <BeslicD@rki.de>"]
-license = "MIT"
+license = {file = "LICENSE"}
 readme = "README.md"
 homepage = "https://github.com/rki-mf1/breakfast"
 repository = "https://github.com/rki-mf1/breakfast"
