@@ -3,6 +3,7 @@
 VERSION = "0.4.0"
 
 import argparse
+from cmath import isclose
 import gzip
 import os
 import re
@@ -22,7 +23,8 @@ from scipy.sparse import issparse
 from scipy.spatial import distance
 from sklearn.metrics.pairwise import _check_chunk_size, _precompute_metric_params, _return_float_dtype, get_chunk_n_rows, gen_batches, effective_n_jobs, euclidean_distances, manhattan_distances, check_pairwise_arrays
 from sklearn.utils.validation import _num_samples
-from _pairwise_fast import _sparse_manhattan
+from sklearn.metrics.pairwise import _sparse_manhattan
+#from _pairwise_fast import _sparse_manhattan
 
 def manhattan_distances_breakfast(X, Y=None, max_dist=1.0, mut_len_X=[], mut_len=[], *, sum_over_features=True):
     X, Y = check_pairwise_arrays(X, Y)
@@ -32,13 +34,20 @@ def manhattan_distances_breakfast(X, Y=None, max_dist=1.0, mut_len_X=[], mut_len
                 "sum_over_features=%r not supported for sparse matrices"
                 % sum_over_features
             )
+        # TODO: Try to get a batch seperation here, based on the length of mutation profiles! Else try to seperate in the 
+
 
         X = csr_matrix(X, copy=False)
         Y = csr_matrix(Y, copy=False)
         X.sum_duplicates()  # this also sorts indices in-place
         Y.sum_duplicates()
         D = np.zeros((X.shape[0], Y.shape[0]))
-        _sparse_manhattan(X.data, X.indices, X.indptr, Y.data, Y.indices, Y.indptr, D, max_dist, mut_len_X, mut_len)
+        #print(X)
+        #print(mut_len)
+        # OWN FUNCTION
+        #_sparse_manhattan(X.data, X.indices, X.indptr, Y.data, Y.indices, Y.indptr, D, max_dist, mut_len_X, mut_len)
+        # IMPORTED FUNTION
+        _sparse_manhattan(X.data, X.indices, X.indptr, Y.data, Y.indices, Y.indptr, D)
         return D
 
     if sum_over_features:
@@ -252,6 +261,9 @@ def remove_indels(meta, args):
     subs = meta["feature"]
     new_sub = []
     insertion = re.compile(".*[A-Z][A-Z]$")
+    mut_length = [(x.split(" ")) for x in meta["feature"].tolist()]
+    mut_length = [[x for x in mutation_profile if not (x.startswith("del"))] for mutation_profile in mut_length]
+    mut_length = [float(len(x)) for x in mut_length]
     for subt in subs:
         if isinstance(subt, float):
             d = []
@@ -286,20 +298,23 @@ def remove_indels(meta, args):
             new_d.append(term)
         new_sub.append(" ".join(new_d))
     meta["feature"] = new_sub
+    meta["mutation length"] = mut_length
     return meta
 
 
 def construct_sub_mat(meta, args):
-    print("Convert list of substitutions into a sparse matrix")
+    #print("Convert list of substitutions into a sparse matrix")
     insertion = re.compile(".*[A-Z][A-Z]$")
     subs = meta["feature"]
+    mut_length = [(x.split(" ")) for x in meta["feature"].tolist()]
+    mut_length = [float(len([x for x in mutation_profile if not (x.startswith("del:"))])) for mutation_profile in mut_length]
     indptr = [0]
     indices = []
     data = []
-    mutation_profile_length = []
+    #mutation_profile_length = []
     vocabulary = {}
     for subt in subs:
-        mutation_counter = 0
+        #mutation_counter = 0
         if isinstance(subt, float):
             d = []
         else:
@@ -334,11 +349,13 @@ def construct_sub_mat(meta, args):
             index = vocabulary.setdefault(term, len(vocabulary))
             indices.append(index)
             data.append(1)
-            mutation_counter += 1
+            #mutation_counter += 1
         indptr.append(len(indices))
-        mutation_profile_length.append(float(mutation_counter))
+        #mutation_profile_length.append(float(mutation_counter))
     sub_mat = csr_matrix((data, indices, indptr), dtype=int)
-    return sub_mat, mutation_profile_length
+    #print(mut_length)
+    return sub_mat
+    #mut_length
 
 
 def calc_sparse_matrix(meta, args):
@@ -356,7 +373,7 @@ def calc_sparse_matrix(meta, args):
         # construct sub_mat of complete dataset and sub_mat of only new sequences compared to cached meta
         idx_only_new = ca.find_new(feature_map)
         select_ind = np.array(idx_only_new)
-        sub_mat, mutation_profile_length = construct_sub_mat(meta, args)
+        sub_mat = construct_sub_mat(meta, args)
         sub_mat_only_new_seqs = sub_mat[select_ind, :]
 
         print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
@@ -382,26 +399,57 @@ def calc_sparse_matrix(meta, args):
         print(
             "Imported cached results are not available. Distance matrix of complete dataset will be calculated."
         )
+        #print(meta)
+        meta = meta.reset_index(drop=True)
+        #print(meta)
+        mut_len_set = meta['mutation length'].drop_duplicates().tolist()
+        neigh_list = []
+        for ind, mutation_length_ind in enumerate(mut_len_set):
+            meta_subset = meta[np.isclose(meta['mutation length'], mutation_length_ind, atol=args.max_dist)]
+            sub_mat = construct_sub_mat(meta_subset, args)
+            mutation_profile_length = meta['mutation length'].tolist()
+            def _reduce_func(D_chunk, start):
+                neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
+                return neigh
+            gen = pairwise_distances_chunked(
+                    sub_mat,
+                    max_dist=float(args.max_dist),
+                    mut_len=mutation_profile_length,
+                    reduce_func=_reduce_func,
+                    metric="manhattan_breakfast",
+                    n_jobs=1,
+                )
+            neigh = list(chain.from_iterable(gen))
+            #meta_subset.index[0]+1 because it starts at 0
+            neigh = [x+meta_subset.index[0] for x in neigh]
+            neigh_list = neigh_list + neigh
+        '''print(neigh_list[-1])
+        G = _to_graph(neigh_list)
+        clusters = connected_components(G)
+        a = list(clusters)
 
-        sub_mat, mutation_profile_length = construct_sub_mat(meta, args)
+
+        sub_mat = construct_sub_mat(meta, args)
+        mutation_profile_length = meta['mutation length'].tolist()
 
         print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
 
         def _reduce_func(D_chunk, start):
             neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
             return neigh
-
+        
         gen = pairwise_distances_chunked(
-            sub_mat,
-            max_dist=float(args.max_dist),
-            mut_len=mutation_profile_length,
-            reduce_func=_reduce_func,
-            metric="manhattan_breakfast",
-            n_jobs=1,
-        )
+                sub_mat,
+                max_dist=float(args.max_dist),
+                mut_len=mutation_profile_length,
+                reduce_func=_reduce_func,
+                metric="manhattan_breakfast",
+                n_jobs=1,
+            )
         neigh = list(chain.from_iterable(gen))
+        print(neigh[-1])'''
 
-    # EXPORT RESULTS FOR CACHING
+    neigh = neigh_list
     try:
         print("Export results as pickle")
         d = {
@@ -418,6 +466,14 @@ def calc_sparse_matrix(meta, args):
     print("Create graph and recover connected components")
     G = _to_graph(neigh)
     clusters = connected_components(G)
+    #b = list(clusters)
+    
+    # TODO:FIND DIFFERENCE
+    '''print(a[:10])
+    print(b[:10])
+    if a[:10]==b[:10]:
+        print("HURRA")
+        exit()'''
 
     print("Save clusters")
     meta["cluster_id"] = pd.NA
@@ -579,8 +635,10 @@ def main():
 
     # Group IDs with identical sequences together
     meta_withoutDUPS = meta.groupby("feature", as_index=False, sort=False).agg(
-        {"id": lambda x: tuple(x), "feature": "first"}
+        {"id": lambda x: tuple(x), "feature": "first", "mutation length":"first"}
     )
+    meta_withoutDUPS = meta_withoutDUPS.sort_values(by=['mutation length', 'id'])
+
     print(f"Number of unique sequences: {meta_withoutDUPS.shape[0]}")
 
     if args.max_dist == 0:
@@ -609,7 +667,6 @@ def main():
     meta_out[["id", "cluster_id"]].to_csv(
         os.path.join(args.outdir, "clusters.tsv"), sep="\t", index=False
     )
-
 
 # Main body
 if __name__ == "__main__":
