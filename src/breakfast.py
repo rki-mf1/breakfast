@@ -49,9 +49,7 @@ def remove_indels(meta, args):
     subs = meta["feature"]
     new_sub = []
     insertion = re.compile(".*[A-Z][A-Z]$")
-    mut_length = [(x.split(" ")) for x in meta["feature"].tolist()]
-    mut_length = [[x for x in mutation_profile if not (x.startswith("del"))] for mutation_profile in mut_length]
-    mut_length = [float(len(x)) for x in mut_length]
+    mut_length = []
     for subt in subs:
         if isinstance(subt, float):
             d = []
@@ -85,6 +83,7 @@ def remove_indels(meta, args):
                         continue
             new_d.append(term)
         new_sub.append(" ".join(new_d))
+        mut_length.append(len(new_d))
     meta["feature"] = new_sub
     meta["mutation length"] = mut_length
     return meta
@@ -189,7 +188,7 @@ def calc_sparse_matrix(meta, args):
         mut_len_set = meta['mutation length'].drop_duplicates().tolist()
         neigh_list = []
         for mutation_length_ind in mut_len_set:
-            meta_subset = meta[np.isclose(meta['mutation length'], mutation_length_ind, atol=args.max_dist+1)]
+            meta_subset = meta[np.isclose(meta['mutation length'], mutation_length_ind, atol=args.max_dist)]
             sub_mat = construct_sub_mat(meta_subset, args)
             def _reduce_func(D_chunk, start):
                 neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
