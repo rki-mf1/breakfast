@@ -7,6 +7,7 @@ from cmath import isclose
 import gzip
 import os
 import re
+from select import select
 import sys
 from itertools import chain
 
@@ -144,6 +145,9 @@ def construct_sub_mat(meta, args):
     return sub_mat
     #mut_length
 
+def filter_where(arr, k_min, k_max):
+    arr = arr[np.where(arr >= k_min)]
+    return arr[np.where(arr <= k_max)]
 
 def calc_sparse_matrix(meta, args):
     # IMPORT RESULTS FROM PREVIOUS RUN
@@ -156,28 +160,63 @@ def calc_sparse_matrix(meta, args):
 
         feature_map = ca.map_features(cache["meta"]["feature"], meta["feature"])
         neigh_cache_updated = ca.update_neighbours(cache["neigh"], feature_map)
-
         # construct sub_mat of complete dataset and sub_mat of only new sequences compared to cached meta
         idx_only_new = ca.find_new(feature_map)
         select_ind = np.array(idx_only_new)
-        sub_mat = construct_sub_mat(meta, args)
-        sub_mat_only_new_seqs = sub_mat[select_ind, :]
 
+        meta = meta.reset_index(drop=True)
+        mut_len_set = meta['mutation length'].drop_duplicates().tolist()
+        neigh_list = []
+        for mutation_length_ind in mut_len_set:
+            def _reduce_func(D_chunk, start):
+                neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
+                return neigh
+            meta_subset = meta[np.isclose(meta['mutation length'], mutation_length_ind, atol=args.max_dist)]
+            sub_mat = construct_sub_mat(meta_subset, args)
+            first_idx = (meta_subset.index[0])
+            last_idx = (meta_subset.index[-1])
+            select_ind_subset = filter_where(select_ind, first_idx, last_idx)
+            meta_subset_reidx = meta_subset.reset_index()
+
+            if len(select_ind_subset) > 0:
+                select_ind_subset = meta_subset_reidx[meta_subset_reidx['index'].isin(select_ind_subset)].index
+                sub_mat_only_new_seqs = sub_mat[select_ind_subset, :]
+                gen = pairwise_distances_chunked(
+                        X=sub_mat_only_new_seqs,
+                        Y=sub_mat,
+                        #sub_mat,
+                        reduce_func=_reduce_func,
+                        metric="manhattan",
+                        n_jobs=1,
+                    )
+            else:
+                gen = pairwise_distances_chunked(
+                        sub_mat,
+                        reduce_func=_reduce_func,
+                        metric="manhattan",
+                        n_jobs=1,
+                    )
+            neigh = list(chain.from_iterable(gen))
+            neigh = [x+meta_subset.index[0] for x in neigh]
+            neigh_list = neigh_list + neigh
+        neigh_new = neigh_list
+
+        #select_ind = filter_where(select_ind, 1000, 10000)
+        #sub_mat = construct_sub_mat(meta, args)
+        #sub_mat_only_new_seqs = sub_mat[select_ind, :]
+        # FOR LOOP for mutation_length_ind in mut_len_set:
+        # same stuff but add sub_mat_only_new_seqs
+        # Get index by print(meta_subset.index[0])
+        # Use Indices for sub_mar_only_new_seqs which are part of the 
         print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
 
-        def _reduce_func(D_chunk, start):
-            neigh = [np.flatnonzero(d <= args.max_dist) for d in D_chunk]
-            return neigh
-
-        gen = pairwise_distances_chunked(
+        '''gen = pairwise_distances_chunked(
             X=sub_mat_only_new_seqs,
             Y=sub_mat,
             reduce_func=_reduce_func,
             metric="manhattan",
             n_jobs=1,
-        )
-
-        neigh_new = list(chain.from_iterable(gen))
+        )'''
         neigh = neigh_cache_updated + neigh_new
 
     except (UnboundLocalError, TypeError) as e:
@@ -202,7 +241,7 @@ def calc_sparse_matrix(meta, args):
             neigh = list(chain.from_iterable(gen))
             neigh = [x+meta_subset.index[0] for x in neigh]
             neigh_list = neigh_list + neigh
-
+        neigh = neigh_list
         # Compute complete matrix
         '''
         sub_mat = construct_sub_mat(meta, args)
@@ -222,7 +261,7 @@ def calc_sparse_matrix(meta, args):
         neigh = list(chain.from_iterable(gen))
         '''
 
-    neigh = neigh_list
+    
     try:
         print("Export results as pickle")
         d = {
