@@ -23,6 +23,7 @@ def read_input(input_file, sep, id_col, feature_col):
         dtype={id_col: str, feature_col: str},
         sep=sep,
     ).rename(columns={id_col: "id", feature_col: "feature"})
+    meta.fillna(value={"feature": ""}, inplace=True)
     print(f"Number of sequences: {meta.shape[0]}")
     return meta
 
@@ -119,7 +120,7 @@ def filter_features(
         d = feature.split(feature_sep)
         new_d = []
         for term in d:
-            if feature_type == "dna":
+            if term and feature_type == "dna":
                 if term.startswith("del:"):
                     if skip_del:
                         continue
