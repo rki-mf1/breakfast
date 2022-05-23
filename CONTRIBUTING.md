@@ -10,20 +10,20 @@ To get an overview of the project itself, read the [README](README.md).
 
 ## Getting started
 
-breakfast is written in Python and tries to follow the excellent packaging guidelines ["Hypermodern Python" by Claudio Jolowicz](https://cjolowicz.github.io/posts/hypermodern-python-01-setup/). Nevertheless, there are some places where breakfast differs from those guidelines, and we have tried to outline those differences here wherever relevant. The main differences are caused by most work on breakfast happening in an environment where administrator access is not available (a shared Linux HPC), and also because we want our package to be installable via [conda](https://docs.conda.io/en/latest/index.html), from the [bioconda](https://bioconda.github.io/) channel in particular.
+breakfast is written in Python and tries to follow the excellent packaging guidelines ["Hypermodern Python" by Claudio Jolowicz](https://cjolowicz.github.io/posts/hypermodern-python-01-setup/). Nevertheless, there are some places where breakfast differs from those guidelines, and we have tried to outline those differences here wherever relevant. The main differences are caused by most work on breakfast happening in an environment where administrator access is not available (a shared Linux HPC), and also because we want our package to be installable via [conda](https://docs.conda.io/en/latest/index.html) or [mamba](https://github.com/mamba-org/mamba), from the [bioconda](https://bioconda.github.io/) channel in particular.
 
 ### Setting up your development tools
 
-Some tooling needs to be set up before you can work on breakfast. To install this we use conda, and place them in their own environment:
+Some tooling needs to be set up before you can work on breakfast. To install this we use mamba, a faster replacement for the conda package manager, and place them in their own environment:
 
 ```sh
-conda create -n breakfast-dev python=3 poetry fortran-compiler nox pre-commit
+mamba create -n breakfast-dev python=3 poetry fortran-compiler nox pre-commit
 ```
 
 Then when you want to work on the project, or at the very least if you want to use poetry commands or run tests, you need to switch to this environment:
 
 ```sh
-conda activate breakfast-dev
+mamba activate breakfast-dev
 ```
 
 The rest of this document assumes that you have the breakfast-dev environment active.
