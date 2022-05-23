@@ -2,7 +2,7 @@
 
 [![Tests](https://github.com/rki-mf1/breakfast/workflows/Tests/badge.svg)](https://github.com/rki-mf1/breakfast/actions?workflow=Tests)
 
-`breakfast` is a simple and fast script developed for clustering SARS-CoV-2 genomes using precalculated sequence features (e.g. nucleotide substitutions) from [covSonar](https://gitlab.com/rki-mf1/covsonar) or [Nextclade](https://clades.nextstrain.org/).
+`breakfast` is a simple and fast script developed for clustering SARS-CoV-2 genomes using precalculated sequence features (e.g. nucleotide substitutions) from [covSonar](https://github.com/rki-mf1/covsonar) or [Nextclade](https://clades.nextstrain.org/).
 
 **This project is under development and in experimental stage**
 
@@ -43,7 +43,7 @@ You will find your results in `test-run/cluster.tsv`, which should be identical 
 
 ### Using breakfast with input from covsonar
 
-breakfast uses pre-calculated sequence features (= mutations) as input rather than raw sequences. These features can be calculated with several different programs, but the one we mainly use is [covSonar](https://gitlab.com/rki-mf1/covsonar). It can be used to maintain a database of mutations for a large number of sequences, which can then be easily queried.
+breakfast uses pre-calculated sequence features (= mutations) as input rather than raw sequences. These features can be calculated with several different programs, but the one we mainly use is [covSonar](https://github.com/rki-mf1/covsonar). It can be used to maintain a database of mutations for a large number of sequences, which can then be easily queried.
 
 ```
 conda activate sonar
