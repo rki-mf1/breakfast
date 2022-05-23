@@ -25,6 +25,7 @@ black = "^22.3.0"
 flake8 = "^4.0.1"
 flake8-black = "^0.3.2"
 flake8-import-order = "^0.18.1"
+safety = "^1.10.3"
 
 [tool.poetry.scripts]
 breakfast = "breakfast.console:main"
