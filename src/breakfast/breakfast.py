@@ -166,8 +166,7 @@ def construct_sub_mat(features, feature_sep):
 
 
 def filter_where(arr, k_min, k_max):
-    arr = arr[np.where(arr >= k_min)]
-    arr = arr[np.where(arr <= k_max)]
+    arr = arr[np.where(arr >= k_min) and np.where(arr <= k_max)]
     return arr
 
 
@@ -185,9 +184,9 @@ def sparse_matrix_batch(
     if select_ind is None:
         sub_mat_only_new_seqs = sub_mat
     else:
-        first_idx = meta_subset.index[0]
-        last_idx = meta_subset.index[-1]
-        select_ind_subset = filter_where(select_ind, first_idx, last_idx)
+        select_ind_subset = filter_where(
+            select_ind, meta_subset.index[0], meta_subset.index[-1]
+        )
         meta_subset_reidx = meta_subset.reset_index()
         if len(select_ind_subset) > 0:
             select_ind_subset = meta_subset_reidx[
