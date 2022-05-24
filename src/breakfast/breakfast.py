@@ -61,7 +61,7 @@ def collapse_duplicates(meta):
     print(f"Number of duplicates: {meta['feature'].duplicated().sum()}")
     # Group IDs with identical sequences together
     meta_nodups = meta.groupby("feature", as_index=False, sort=False).agg(
-        {"id": lambda x: tuple(x), "feature": "first"}
+        {"id": lambda x: tuple(x), "feature": "first", "mutation length":"first"}
     )
     print(f"Number of unique sequences: {meta_nodups.shape[0]}")
     return meta_nodups
@@ -115,6 +115,7 @@ def filter_features(
         return features
 
     filtered_features = []
+    mutation_length = []
     insertion = re.compile(".*[A-Z][A-Z]$")
     for feature in features:
         d = feature.split(feature_sep)
@@ -137,7 +138,8 @@ def filter_features(
                         continue
             new_d.append(term)
         filtered_features.append(" ".join(new_d))
-    return filtered_features
+        mutation_length.append(len(new_d))
+    return filtered_features, mutation_length
 
 
 def construct_sub_mat(features, feature_sep):
@@ -162,6 +164,9 @@ def construct_sub_mat(features, feature_sep):
     sub_mat = csr_matrix((data, indices, indptr), dtype=int)
     return sub_mat
 
+def filter_where(arr, k_min, k_max):
+    arr = arr[np.where(arr >= k_min)]
+    return arr[np.where(arr <= k_max)]
 
 def calc_sparse_matrix(
     meta, feature_sep, max_dist, min_cluster_size, input_cache, output_cache
@@ -181,24 +186,49 @@ def calc_sparse_matrix(
         # sequences compared to cached meta
         idx_only_new = ca.find_new(feature_map)
         select_ind = np.array(idx_only_new)
-        sub_mat = construct_sub_mat(meta["feature"], feature_sep)
-        sub_mat_only_new_seqs = sub_mat[select_ind, :]
 
-        print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
+        meta = meta.reset_index(drop=True)
+        mutation_length_list = meta["mutation length"].drop_duplicates().tolist()
+        neigh_list = []
 
-        def _reduce_func(D_chunk, start):
-            neigh = [np.flatnonzero(d <= max_dist) for d in D_chunk]
-            return neigh
+        for mutation_length_ind in mutation_length_list:
+            #TODO: Move reduce function somewhere else
+            def _reduce_func(D_chunk, start):
+                neigh = [np.flatnonzero(d <= max_dist) for d in D_chunk]
+                return neigh
+            meta_subset = meta[np.isclose(meta["mutation length"], mutation_length_ind, atol=max_dist)]
+            sub_mat = construct_sub_mat(meta_subset["feature"], feature_sep)
+            first_idx = (meta_subset.index[0])
+            last_idx = (meta_subset.index[-1])
+            select_ind_subset = filter_where(select_ind, first_idx, last_idx)
+            meta_subset_reidx = meta_subset.reset_index()
 
-        gen = pairwise_distances_chunked(
-            X=sub_mat_only_new_seqs,
-            Y=sub_mat,
-            reduce_func=_reduce_func,
-            metric="manhattan",
-            n_jobs=1,
-        )
 
-        neigh_new = list(chain.from_iterable(gen))
+            if len(select_ind_subset) > 0:
+                select_ind_subset = meta_subset_reidx[meta_subset_reidx["index"].isin(select_ind_subset)].index
+                sub_mat_only_new_seqs = sub_mat[select_ind_subset, :]
+            else:
+               sub_mat_only_new_seqs = sub_mat
+            
+            gen = pairwise_distances_chunked(
+                    X=sub_mat_only_new_seqs,
+                    Y=sub_mat,
+                    reduce_func=_reduce_func,
+                    metric="manhattan",
+                    n_jobs=1,
+                )
+            
+            neigh = list(chain.from_iterable(gen))
+            neigh_test = []
+            for x in neigh:
+                y_list = []
+                for i, y in enumerate(x):
+                    y = meta_subset.index[i]
+                    y_list.append(y)
+                neigh_test.append(np.array(y_list))
+            neigh=neigh_test
+            neigh_list = neigh_list + neigh
+        neigh_new = neigh_list
         neigh = neigh_cache_updated + neigh_new
 
     except (UnboundLocalError, TypeError):
@@ -208,22 +238,26 @@ def calc_sparse_matrix(
                 "Distance matrix of complete dataset will be calculated."
             )
         )
+        meta = meta.reset_index(drop=True)
+        mut_len_set = meta['mutation length'].drop_duplicates().tolist()
+        neigh_list = []
 
-        sub_mat = construct_sub_mat(meta["feature"], feature_sep)
-
-        print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
-
-        def _reduce_func(D_chunk, start):
-            neigh = [np.flatnonzero(d <= max_dist) for d in D_chunk]
-            return neigh
-
-        gen = pairwise_distances_chunked(
-            sub_mat,
-            reduce_func=_reduce_func,
-            metric="manhattan",
-            n_jobs=1,
-        )
-        neigh = list(chain.from_iterable(gen))
+        for mutation_length_ind in mut_len_set:
+            meta_subset = meta[np.isclose(meta['mutation length'], mutation_length_ind, atol=max_dist)]
+            sub_mat = construct_sub_mat(meta_subset["feature"], feature_sep)
+            def _reduce_func(D_chunk, start):
+                neigh = [np.flatnonzero(d <= max_dist) for d in D_chunk]
+                return neigh
+            gen = pairwise_distances_chunked(
+                    sub_mat,
+                    reduce_func=_reduce_func,
+                    metric="manhattan",
+                    n_jobs=1,
+                )
+            neigh = list(chain.from_iterable(gen))
+            neigh = [x+meta_subset.index[0] for x in neigh]
+            neigh_list = neigh_list + neigh
+        neigh = neigh_list
 
     # EXPORT RESULTS FOR CACHING
     try:

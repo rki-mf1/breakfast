@@ -70,7 +70,7 @@ def main(
 
     meta = breakfast.read_input(input_file, sep, id_col, clust_col)
 
-    meta["feature"] = breakfast.filter_features(
+    meta["feature"], meta["mutation length"] = breakfast.filter_features(
         meta["feature"],
         sep2,
         var_type,
@@ -80,7 +80,7 @@ def main(
         trim_end,
         reference_length,
     )
-
+    
     meta_nodups = breakfast.collapse_duplicates(meta)
 
     meta_clustered = breakfast.cluster(
