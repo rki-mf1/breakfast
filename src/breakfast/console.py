@@ -80,7 +80,6 @@ def main(
         trim_end,
         reference_length,
     )
-    
     meta_nodups = breakfast.collapse_duplicates(meta)
 
     meta_clustered = breakfast.cluster(
