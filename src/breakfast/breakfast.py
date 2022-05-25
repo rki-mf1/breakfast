@@ -47,8 +47,7 @@ def write_output(meta_nodups, meta_original, outdir):
     meta_out = meta_out.reindex(index=meta_original["id"])
     meta_out = meta_out.reset_index()
 
-    # Assign new cluster IDs according
-
+    # Assign new cluster IDs according to order of input file
     keys = list(dict.fromkeys(meta_out["cluster_id"].tolist()))
     keys = [x for x in keys if not pd.isna(x)]
     dict_id = {}
@@ -56,9 +55,8 @@ def write_output(meta_nodups, meta_original, outdir):
     for i in range(len(keys)):
         new_cluster_id += 1
         dict_id[keys[i]] = new_cluster_id
-
-    # create dictonary
-    meta_out = meta_out.replace({"cluster_id": dict_id})
+    replacer = dict_id.get
+    meta_out["cluster_id"] = [replacer(n, n) for n in meta_out["cluster_id"].tolist()]
 
     assert meta_out.shape[0] == meta_original.shape[0]
 
