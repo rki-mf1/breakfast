@@ -41,10 +41,25 @@ def write_output(meta_nodups, meta_original, outdir):
     meta_out = pd.DataFrame()
     meta_out["id"] = meta_accession
     meta_out["cluster_id"] = meta_clusterid
+
     # Sort according to input file
     meta_out = meta_out.set_index("id")
     meta_out = meta_out.reindex(index=meta_original["id"])
     meta_out = meta_out.reset_index()
+
+    # Assign new cluster IDs according
+
+    keys = list(dict.fromkeys(meta_out["cluster_id"].tolist()))
+    keys = [x for x in keys if not pd.isna(x)]
+    dict_id = {}
+    new_cluster_id = 0
+    for i in range(len(keys)):
+        new_cluster_id += 1
+        dict_id[keys[i]] = new_cluster_id
+
+    # create dictonary
+    meta_out = meta_out.replace({"cluster_id": dict_id})
+
     assert meta_out.shape[0] == meta_original.shape[0]
 
     if not os.path.exists(outdir):
@@ -204,10 +219,7 @@ def sparse_matrix_batch(
     )
 
     neigh = list(chain.from_iterable(gen))
-    if select_ind is None:
-        neigh = [x + meta_subset.index[0] for x in neigh]
-    else:
-        neigh = [x + meta_subset.index[0] for x in neigh]
+    neigh = [x + meta_subset.index[0] for x in neigh]
     return neigh
 
 
