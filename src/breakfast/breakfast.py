@@ -41,12 +41,10 @@ def write_output(meta_nodups, meta_original, outdir):
     meta_out = pd.DataFrame()
     meta_out["id"] = meta_accession
     meta_out["cluster_id"] = meta_clusterid
-
     # Sort according to input file
     meta_out = meta_out.set_index("id")
     meta_out = meta_out.reindex(index=meta_original["id"])
     meta_out = meta_out.reset_index()
-
     assert meta_out.shape[0] == meta_original.shape[0]
 
     if not os.path.exists(outdir):
@@ -63,6 +61,7 @@ def collapse_duplicates(meta):
     meta_nodups = meta.groupby("feature", as_index=False, sort=False).agg(
         {"id": lambda x: tuple(x), "feature": "first", "mutation length": "first"}
     )
+    meta_nodups = meta_nodups.sort_values(by=["mutation length", "id"])
     print(f"Number of unique sequences: {meta_nodups.shape[0]}")
     return meta_nodups
 
@@ -205,7 +204,10 @@ def sparse_matrix_batch(
     )
 
     neigh = list(chain.from_iterable(gen))
-    neigh = [np.array([meta_subset.index[i] for i, y in enumerate(x)]) for x in neigh]
+    if select_ind is None:
+        neigh = [x + meta_subset.index[0] for x in neigh]
+    else:
+        neigh = [x + meta_subset.index[0] for x in neigh]
     return neigh
 
 
@@ -247,7 +249,9 @@ def calc_sparse_matrix(
                 "Distance matrix of complete dataset will be calculated."
             )
         )
+        # print(meta)
         meta = meta.reset_index(drop=True)
+        # print(meta)
         mut_len_set = meta["mutation length"].drop_duplicates().tolist()
         neigh_list = []
         for mutation_length_ind in mut_len_set:
