@@ -1,4 +1,34 @@
+import gzip
+import _pickle as cPickle
+
 import pandas as pd
+
+from . import __version__
+
+
+def load(input_file, max_dist):
+    """Load and validate cached data from a previous run"""
+    with gzip.open(input_file, "rb") as f:
+        print("Import from pickle file")
+        cache = cPickle.load(f)
+    validate(cache, max_dist, __version__)
+    return cache
+
+
+def save(output_file, neigh, meta, max_dist):
+    """Save cached results to a file, along with some metadata"""
+    try:
+        print("Export results as pickle")
+        d = {
+            "max_dist": max_dist,
+            "version": __version__,
+            "neigh": neigh,
+            "meta": meta[["id", "feature"]],
+        }
+        with gzip.open(output_file, "wb") as f:
+            cPickle.dump(d, f, 2)  # protocol 2, python > 2.3
+    except TypeError:
+        print("Export of pickle was not succesfull")
 
 
 def validate(cache, max_dist, version):
