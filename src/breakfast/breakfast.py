@@ -186,21 +186,31 @@ def get_neighbours_batch(
         neigh = [np.flatnonzero(d <= max_dist) for d in D_chunk]
         return neigh
 
-    # select_ind is an empty list, so we return an empty neighbour list
-    # immediately
+    # Because some values are possibly cached, we might want to select only
+    # new/updated features for clustering. The next two if statements handle
+    # this:
+
+    # if select_ind is an empty list, so we return an empty neighbour list
+    # immediately. All values are already in the cache or the input is empty.
     if select_ind is not None and select_ind.size == 0:
         return []
 
-    # select_ind = None means we select everything, otherwise we only select a
-    # subset
+    # select_ind = None means we select everything (= no values are cached),
+    # otherwise we only select a subset (= some values are cached)
+    fmatrix_batch = fmatrix
+    n_features_batch = n_features_all
     if select_ind is not None:
-        fmatrix = fmatrix[select_ind, :]
-        n_features_all = n_features_all[select_ind]
+        fmatrix_batch = fmatrix[select_ind, :]
+        n_features_batch = n_features_all[select_ind]
 
-    # Logical vector indicating which sequences are within:
-    # n_features_query +/- max_dist
+    # Optimization to not compute distances when the length of the feature
+    # vectors indicate that they are guaranteed to be > max_dist from each
+    # other.
     close_enough = np.isclose(n_features_all, n_features_query, atol=max_dist)
-    fmatrix_batch = fmatrix[close_enough, :]
+    close_enough_batch = np.isclose(n_features_batch, n_features_query, atol=max_dist)
+
+    fmatrix = fmatrix[close_enough, :]
+    fmatrix_batch = fmatrix_batch[close_enough_batch, :]
 
     gen = pairwise_distances_chunked(
         X=fmatrix_batch,
@@ -211,10 +221,12 @@ def get_neighbours_batch(
     )
 
     neigh = list(chain.from_iterable(gen))
-    # The select_ind tells us exactly what our original index should be
-    print(neigh)
-    if select_ind is not None:
-        neigh = [select_ind[x] for x in neigh]
+
+    # Need to fix the index numbers in the neighbour array, because we have
+    # probably subset the input data and we need the indexes to point to the
+    # correct element of the original input array
+    fix_idx = np.where(close_enough)[0]
+    neigh = [fix_idx[x] for x in neigh]
     return neigh
 
 
@@ -230,6 +242,7 @@ def cluster_features(
 
     select_ind = None  # This actually means we select all seqs
     neigh_list = []
+    n_features_unique = meta["n_features"].drop_duplicates().tolist()
 
     # Import results from previous run
     try:
@@ -239,6 +252,7 @@ def cluster_features(
 
         # Identify new/updated sequences and only select them for clustering
         select_ind = np.array(ca.find_new(feature_map)).astype(int)
+        n_features_unique = meta["n_features"][select_ind].drop_duplicates().tolist()
 
         # Add the cached neighbours to our neighbour list
         neigh_list += neigh_cache_updated
@@ -251,7 +265,6 @@ def cluster_features(
             )
         )
 
-    n_features_unique = meta["n_features"].drop_duplicates().tolist()
     for n_features_query in n_features_unique:
         neigh = get_neighbours_batch(
             feat_matrix, meta["n_features"], n_features_query, max_dist, select_ind
