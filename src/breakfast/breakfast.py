@@ -45,17 +45,6 @@ def write_output(meta_nodups, meta_original, outdir):
     meta_out = meta_out.reindex(index=meta_original["id"])
     meta_out = meta_out.reset_index()
 
-    # Assign new cluster IDs according to order of input file
-    keys = list(dict.fromkeys(meta_out["cluster_id"].tolist()))
-    keys = [x for x in keys if not pd.isna(x)]
-    dict_id = {}
-    new_cluster_id = 0
-    for i in range(len(keys)):
-        new_cluster_id += 1
-        dict_id[keys[i]] = new_cluster_id
-    replacer = dict_id.get
-    meta_out["cluster_id"] = [replacer(n, n) for n in meta_out["cluster_id"].tolist()]
-
     assert meta_out.shape[0] == meta_original.shape[0]
 
     if not os.path.exists(outdir):
@@ -233,13 +222,11 @@ def get_neighbours_batch(
 def cluster_features(
     meta, feature_sep, max_dist, min_cluster_size, input_cache, output_cache
 ):
-
     # Create sparse matrix of all features once, which we will then subset
     # based on caching and optimization details
     feat_matrix = sparse_feature_matrix(meta["feature"], feature_sep)
     # Count the number of features using a row sum
     meta["n_features"] = feat_matrix.sum(axis=1)
-
     select_ind = None  # This actually means we select all seqs
     neigh_list = []
     n_features_unique = meta["n_features"].drop_duplicates().tolist()
@@ -253,7 +240,6 @@ def cluster_features(
         # Identify new/updated sequences and only select them for clustering
         select_ind = np.array(ca.find_new(feature_map)).astype(int)
         n_features_unique = meta["n_features"][select_ind].drop_duplicates().tolist()
-
         # Add the cached neighbours to our neighbour list
         neigh_list += neigh_cache_updated
 
@@ -271,14 +257,12 @@ def cluster_features(
         )
         neigh_list = neigh_list + neigh
     neigh = neigh_list
-
     if output_cache:
         ca.save(output_cache, neigh, meta, max_dist)
 
     print("Create graph and recover connected components")
     G = _to_graph(neigh)
     clusters = connected_components(G)
-
     print("Save clusters")
     meta["cluster_id"] = pd.NA
     cluster_id = 0
