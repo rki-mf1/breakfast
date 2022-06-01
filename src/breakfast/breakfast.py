@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 
-import gzip
 import os
 import re
 from itertools import chain
 
-import _pickle as cPickle
 import networkx
 import numpy as np
 import pandas as pd
@@ -13,7 +11,7 @@ from networkx.algorithms.components.connected import connected_components
 from scipy.sparse import csr_matrix
 from sklearn.metrics import pairwise_distances_chunked
 
-from . import cache as ca, __version__
+from . import cache as ca
 
 
 def read_input(input_file, sep, id_col, feature_col):
@@ -47,6 +45,17 @@ def write_output(meta_nodups, meta_original, outdir):
     meta_out = meta_out.reindex(index=meta_original["id"])
     meta_out = meta_out.reset_index()
 
+    # Assign new cluster IDs according to order of input file
+    keys = list(dict.fromkeys(meta_out["cluster_id"].tolist()))
+    keys = [x for x in keys if not pd.isna(x)]
+    dict_id = {}
+    new_cluster_id = 0
+    for i in range(len(keys)):
+        new_cluster_id += 1
+        dict_id[keys[i]] = new_cluster_id
+    replacer = dict_id.get
+    meta_out["cluster_id"] = [replacer(n, n) for n in meta_out["cluster_id"].tolist()]
+
     assert meta_out.shape[0] == meta_original.shape[0]
 
     if not os.path.exists(outdir):
@@ -69,9 +78,9 @@ def collapse_duplicates(meta):
 
 def cluster(meta_nodups, sep2, max_dist, min_cluster_size, input_cache, output_cache):
     if max_dist == 0:
-        meta_nodups = calc_without_sparse_matrix(meta_nodups, min_cluster_size)
+        meta_nodups = cluster_identical_features(meta_nodups, min_cluster_size)
     else:
-        meta_nodups = calc_sparse_matrix(
+        meta_nodups = cluster_features(
             meta_nodups, sep2, max_dist, min_cluster_size, input_cache, output_cache
         )
     return meta_nodups
@@ -89,8 +98,8 @@ def _to_graph(neighbour_list):
 
 
 def _to_edges(clustered_ids):
-    """
-    treat `l` as a Graph and returns it's edges
+    """Treat `clustered_ids` as a Graph and returns it's edges
+
     to_edges(['a','b','c','d']) -> [(a,b), (b,c),(c,d)]
     """
     it = iter(clustered_ids)
@@ -111,6 +120,8 @@ def filter_features(
     trim_end,
     reference_length,
 ):
+    # If there's no filtering to be done, we immediately return the original
+    # feature list
     if not (skip_del or skip_ins or (trim_start > 0) or (trim_end > 0)):
         return features
 
@@ -140,8 +151,8 @@ def filter_features(
     return filtered_features
 
 
-def construct_sub_mat(features, feature_sep):
-    """Convert list of substitutions into a sparse matrix"""
+def sparse_feature_matrix(features, feature_sep):
+    """Convert list of features (mutations) into a sparse matrix"""
     indptr = [0]
     indices = []
     data = []
@@ -163,43 +174,88 @@ def construct_sub_mat(features, feature_sep):
     return sub_mat
 
 
-def calc_sparse_matrix(
+def filter_where(arr, k_min, k_max):
+    arr = arr[np.where(arr >= k_min) and np.where(arr <= k_max)]
+    return arr
+
+
+def get_neighbours_batch(
+    fmatrix, n_features_all, n_features_query, max_dist, select_ind=None
+):
+    def _reduce_func(D_chunk, start):
+        neigh = [np.flatnonzero(d <= max_dist) for d in D_chunk]
+        return neigh
+
+    # Because some values are possibly cached, we might want to select only
+    # new/updated features for clustering. The next two if statements handle
+    # this:
+
+    # if select_ind is an empty list, so we return an empty neighbour list
+    # immediately. All values are already in the cache or the input is empty.
+    if select_ind is not None and select_ind.size == 0:
+        return []
+
+    # select_ind = None means we select everything (= no values are cached),
+    # otherwise we only select a subset (= some values are cached)
+    fmatrix_batch = fmatrix
+    n_features_batch = n_features_all
+    if select_ind is not None:
+        fmatrix_batch = fmatrix[select_ind, :]
+        n_features_batch = n_features_all[select_ind]
+
+    # Optimization to not compute distances when the length of the feature
+    # vectors indicate that they are guaranteed to be > max_dist from each
+    # other.
+    close_enough = np.isclose(n_features_all, n_features_query, atol=max_dist)
+    close_enough_batch = np.isclose(n_features_batch, n_features_query, atol=max_dist)
+
+    fmatrix = fmatrix[close_enough, :]
+    fmatrix_batch = fmatrix_batch[close_enough_batch, :]
+
+    gen = pairwise_distances_chunked(
+        X=fmatrix_batch,
+        Y=fmatrix,
+        reduce_func=_reduce_func,
+        metric="manhattan",
+        n_jobs=1,
+    )
+
+    neigh = list(chain.from_iterable(gen))
+
+    # Need to fix the index numbers in the neighbour array, because we have
+    # probably subset the input data and we need the indexes to point to the
+    # correct element of the original input array
+    fix_idx = np.where(close_enough)[0]
+    neigh = [fix_idx[x] for x in neigh]
+    return neigh
+
+
+def cluster_features(
     meta, feature_sep, max_dist, min_cluster_size, input_cache, output_cache
 ):
-    # IMPORT RESULTS FROM PREVIOUS RUN
+
+    # Create sparse matrix of all features once, which we will then subset
+    # based on caching and optimization details
+    feat_matrix = sparse_feature_matrix(meta["feature"], feature_sep)
+    # Count the number of features using a row sum
+    meta["n_features"] = feat_matrix.sum(axis=1)
+
+    select_ind = None  # This actually means we select all seqs
+    neigh_list = []
+    n_features_unique = meta["n_features"].drop_duplicates().tolist()
+
+    # Import results from previous run
     try:
-        with gzip.open(input_cache, "rb") as f:
-            print("Import from pickle file")
-            cache = cPickle.load(f)
-
-        ca.validate(cache, max_dist, __version__)
-
+        cache = ca.load(input_cache, max_dist)
         feature_map = ca.map_features(cache["meta"]["feature"], meta["feature"])
         neigh_cache_updated = ca.update_neighbours(cache["neigh"], feature_map)
 
-        # construct sub_mat of complete dataset and sub_mat of only new
-        # sequences compared to cached meta
-        idx_only_new = ca.find_new(feature_map)
-        select_ind = np.array(idx_only_new)
-        sub_mat = construct_sub_mat(meta["feature"], feature_sep)
-        sub_mat_only_new_seqs = sub_mat[select_ind, :]
+        # Identify new/updated sequences and only select them for clustering
+        select_ind = np.array(ca.find_new(feature_map)).astype(int)
+        n_features_unique = meta["n_features"][select_ind].drop_duplicates().tolist()
 
-        print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
-
-        def _reduce_func(D_chunk, start):
-            neigh = [np.flatnonzero(d <= max_dist) for d in D_chunk]
-            return neigh
-
-        gen = pairwise_distances_chunked(
-            X=sub_mat_only_new_seqs,
-            Y=sub_mat,
-            reduce_func=_reduce_func,
-            metric="manhattan",
-            n_jobs=1,
-        )
-
-        neigh_new = list(chain.from_iterable(gen))
-        neigh = neigh_cache_updated + neigh_new
+        # Add the cached neighbours to our neighbour list
+        neigh_list += neigh_cache_updated
 
     except (UnboundLocalError, TypeError):
         print(
@@ -209,35 +265,15 @@ def calc_sparse_matrix(
             )
         )
 
-        sub_mat = construct_sub_mat(meta["feature"], feature_sep)
-
-        print("Use sparse matrix to calculate pairwise distances, bounded by max_dist")
-
-        def _reduce_func(D_chunk, start):
-            neigh = [np.flatnonzero(d <= max_dist) for d in D_chunk]
-            return neigh
-
-        gen = pairwise_distances_chunked(
-            sub_mat,
-            reduce_func=_reduce_func,
-            metric="manhattan",
-            n_jobs=1,
+    for n_features_query in n_features_unique:
+        neigh = get_neighbours_batch(
+            feat_matrix, meta["n_features"], n_features_query, max_dist, select_ind
         )
-        neigh = list(chain.from_iterable(gen))
+        neigh_list = neigh_list + neigh
+    neigh = neigh_list
 
-    # EXPORT RESULTS FOR CACHING
-    try:
-        print("Export results as pickle")
-        d = {
-            "max_dist": max_dist,
-            "version": __version__,
-            "neigh": neigh,
-            "meta": meta[["id", "feature"]],
-        }
-        with gzip.open(output_cache, "wb") as f:
-            cPickle.dump(d, f, 2)  # protocol 2, python > 2.3
-    except TypeError:
-        print("Export of pickle was not succesfull")
+    if output_cache:
+        ca.save(output_cache, neigh, meta, max_dist)
 
     print("Create graph and recover connected components")
     G = _to_graph(neigh)
@@ -258,7 +294,16 @@ def calc_sparse_matrix(
     return meta
 
 
-def calc_without_sparse_matrix(meta, min_cluster_size):
+def cluster_identical_features(meta, min_cluster_size):
+    """Identify identical feature sets quickly
+
+    This is a special case for the situation where max_dist is 0, which means
+    the feature sets need to be identical. In this case we can skip the
+    creation of a sparse matrix and everything else, and just do a quick scan
+    of the feature vectors. This is much faster and more memory efficient.
+
+    Note that caching is not supported in this case.
+    """
     print("Skip sparse matrix calculation since max-dist = 0")
     clusters = list(range(0, len(meta)))
     accession_list = meta["id"].tolist()

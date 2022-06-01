@@ -19,7 +19,7 @@ def only_filter_dna(ctx, param, value):
 @click.option("--outdir", type=click.Path(), default="output", help="Output directory for all output files")
 @click.option("--max-dist", type=int, default=1, help="Maximum parwise distance")
 @click.option("--min-cluster-size", type=int, default=2, help="Minimum cluster size")
-@click.option("--input-cache", type=click.Path(), help="Input cached pickle file from previous run")
+@click.option("--input-cache", type=click.Path(exists=True), help="Input cached pickle file from previous run")
 @click.option("--output-cache", type=click.Path(), help="Path to Output cached pickle file")
 @click.option("--id-col", default="accession", help="Column with the sequence identifier")
 @click.option("--clust-col", default="dna_profile", help="Metadata column to cluster")
@@ -80,7 +80,6 @@ def main(
         trim_end,
         reference_length,
     )
-
     meta_nodups = breakfast.collapse_duplicates(meta)
 
     meta_clustered = breakfast.cluster(
