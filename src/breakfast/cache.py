@@ -1,6 +1,6 @@
 import gzip
 import _pickle as cPickle
-
+import os
 import pandas as pd
 
 from . import __version__
@@ -25,6 +25,10 @@ def save(output_file, neigh, meta, max_dist):
             "neigh": neigh,
             "meta": meta[["id", "feature"]],
         }
+        outdir = output_file.rpartition("/")[0]
+        if outdir:
+            if not os.path.exists(outdir):
+                os.makedirs(outdir)
         with gzip.open(output_file, "wb") as f:
             cPickle.dump(d, f, 2)  # protocol 2, python > 2.3
     except TypeError:
