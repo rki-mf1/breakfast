@@ -1,3 +1,5 @@
+import os
+
 import click
 
 from . import breakfast, __version__
@@ -21,6 +23,7 @@ from . import breakfast, __version__
 @click.option("--reference-length", type=click.IntRange(0), default=29903, help="Length of reference genome (defaults to NC_045512.2 length)")
 @click.option("--skip-del/--no-skip-del", default=True, help="Skip deletions")
 @click.option("--skip-ins/--no-skip-ins", default=True, help="Skip insertions")
+@click.option("--jobs", type=click.IntRange(1), default=1, envvar="OMP_NUM_THREADS", help="Number of jobs (threads) to run simultaneously")
 @click.version_option(version=__version__)
 # fmt: on
 def main(
@@ -40,6 +43,7 @@ def main(
     reference_length,
     skip_del,
     skip_ins,
+    jobs,
 ):
 
     # Trimming and skipping indels is not currently implemented for amino acid features
@@ -69,6 +73,8 @@ def main(
     print(f"  skip insertions = {skip_ins}")
     print(f"  Input cache file = {input_cache}")
     print(f"  Output cache file = {output_cache}")
+
+    os.environ["OMP_NUM_THREADS"] = str(jobs)
 
     meta = breakfast.read_input(input_file, sep, id_col, clust_col)
 

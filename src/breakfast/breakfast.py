@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import os
 import re
 from itertools import chain
@@ -9,7 +7,6 @@ import numpy as np
 import pandas as pd
 from networkx.algorithms.components.connected import connected_components
 from scipy.sparse import csr_matrix
-from sklearn.metrics import pairwise_distances_chunked
 
 from . import cache as ca
 
@@ -218,6 +215,11 @@ def get_neighbours_batch(
 
     fmatrix = fmatrix[close_enough, :]
     fmatrix_batch = fmatrix_batch[close_enough_batch, :]
+
+    # We "lazy import" this function because the number of threads
+    # (=OMP_NUM_THREADS env variable) needs to be set before the import
+    # happens, and we can't do that if the import is at the top of the file
+    from sklearn.metrics import pairwise_distances_chunked
 
     gen = pairwise_distances_chunked(
         X=fmatrix_batch,
