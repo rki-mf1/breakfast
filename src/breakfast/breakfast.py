@@ -21,6 +21,7 @@ def read_input(input_file, sep, id_col, feature_col):
         dtype={id_col: str, feature_col: str},
         sep=sep,
     ).rename(columns={id_col: "id", feature_col: "feature"})
+    assert not any(meta.id.duplicated())
     meta.fillna(value={"feature": ""}, inplace=True)
     print(f"Number of sequences: {meta.shape[0]}")
     return meta
@@ -110,7 +111,7 @@ def _to_edges(clustered_ids):
         last = current
 
 
-def filter_features(
+def filter_features(  # noqa: C901
     features,
     feature_sep,
     feature_type,
@@ -126,26 +127,32 @@ def filter_features(
         return features
 
     filtered_features = []
-    insertion = re.compile(".*[A-Z][A-Z]$")
+    substitution = re.compile(r"^[A-Z](\d+)[A-Z]$")
+    insertion = re.compile(r"^.*[A-Z][A-Z]$")
+    deletion = re.compile(r"^del:\d+:\d+$")
     for feature in features:
         d = feature.split(feature_sep)
         new_d = []
         for term in d:
-            if term and feature_type == "dna":
-                if term.startswith("del:"):
-                    if skip_del:
-                        continue
-                    pos = int(term.split(":")[1])
-                    if (pos <= trim_start) or (pos >= (reference_length - trim_end)):
-                        continue
-                elif skip_ins and insertion.match(term) is not None:
-                    continue
-                else:
+            if feature_type == "dna":
+                if submatch := substitution.match(term):
                     # Blindly remove reference and alt NT, leaving the position. Then
                     # check if it is in the regions we want to trim away
-                    pos = int(term.translate(str.maketrans("", "", "ACGTN")))
+                    pos = int(submatch.group(1))
                     if (pos <= trim_start) or (pos >= (reference_length - trim_end)):
                         continue
+                elif insertion.match(term):
+                    if skip_ins:
+                        continue
+                elif deletion.match(term):
+                    if skip_del:
+                        continue
+                else:
+                    print(f"Skipping invalid feature: '{term}'")
+                    continue
+            # Skip features that are empty strings ("")
+            if not term:
+                continue
             new_d.append(term)
         filtered_features.append(" ".join(new_d))
     return filtered_features

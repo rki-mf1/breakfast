@@ -80,3 +80,51 @@ def test_dist1_noskipdel(monkeypatch, runner, tmp_path):
     )
     output_clustering = pd.read_table(tmp_path / "clusters.tsv", sep="\t")
     assert expected_clustering.equals(output_clustering)
+
+
+def test_duplicate_ids(monkeypatch, runner, tmp_path):
+    input_file = "duplicate-ids.tsv"
+    monkeypatch.chdir(Path(__file__).parent)
+    result = runner.invoke(
+        console.main,
+        ["--input-file", input_file, "--outdir", str(tmp_path), "--max-dist", "1"],
+    )
+    assert result.exit_code != 0
+
+
+def test_missing_feature_column(monkeypatch, runner, tmp_path):
+    input_file = "testfile.tsv"
+    monkeypatch.chdir(Path(__file__).parent)
+    result = runner.invoke(
+        console.main,
+        [
+            "--input-file",
+            input_file,
+            "--outdir",
+            str(tmp_path),
+            "--max-dist",
+            "1",
+            "--cluster-col",
+            "somethingmissing",
+        ],
+    )
+    assert result.exit_code != 0
+
+
+def test_missing_id_column(monkeypatch, runner, tmp_path):
+    input_file = "testfile.tsv"
+    monkeypatch.chdir(Path(__file__).parent)
+    result = runner.invoke(
+        console.main,
+        [
+            "--input-file",
+            input_file,
+            "--outdir",
+            str(tmp_path),
+            "--max-dist",
+            "1",
+            "--id-col",
+            "somethingmissing",
+        ],
+    )
+    assert result.exit_code != 0
