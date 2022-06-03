@@ -16,7 +16,7 @@ from . import breakfast, __version__
 @click.option("--output-cache", type=click.Path(), help="Path to Output cached pickle file")
 @click.option("--id-col", default="accession", help="Column with the sequence identifier")
 @click.option("--clust-col", default="dna_profile", help="Metadata column to cluster")
-@click.option("--var-type", type=click.Choice(['dna', 'aa']), default="dna", help="Type of variants")
+@click.option("--var-type", type=click.Choice(['covsonar_dna', 'covsonar_aa', 'nextclade_dna', 'nextclade_aa', 'raw']), default="covsonar_dna", help="Type of variants")
 @click.option("--sep2", default=" ", help="Secondary clustering column separator (between each mutation)")
 @click.option("--trim-start", type=click.IntRange(0), default=264, help="Bases to trim from the beginning (0 = disable)")
 @click.option("--trim-end", type=click.IntRange(0), default=228, help="Bases to trim from the end (0 = disable)")
@@ -47,7 +47,7 @@ def main(
 ):
 
     # Trimming and skipping indels is not currently implemented for amino acid features
-    if var_type != "dna":
+    if var_type not in ["covsonar_dna", "nextclade_dna"]:
         if trim_start != 0 or trim_end != 0:
             raise click.BadParameter("Can not trim non-DNA features")
         if skip_ins or skip_del:
@@ -61,7 +61,7 @@ def main(
     print(f"  Input file = {input_file}")
     print(f"  Input file separator = '{sep}'")
     print(f"  ID column = {id_col}")
-    print(f"  clustering feature type ('dna' or 'aa') = {var_type}")
+    print(f"  clustering feature type = {var_type}")
     print(f"  clustering feature column = {clust_col}")
     print(f"  clustering feature column separator = '{sep2}'")
     print(f"  max dist = {max_dist}")
@@ -74,6 +74,8 @@ def main(
     print(f"  Input cache file = {input_cache}")
     print(f"  Output cache file = {output_cache}")
 
+    # Set the number of parallel threads to use for scikit learn distance
+    # calculation
     os.environ["OMP_NUM_THREADS"] = str(jobs)
 
     meta = breakfast.read_input(input_file, sep, id_col, clust_col)

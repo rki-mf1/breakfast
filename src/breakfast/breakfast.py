@@ -124,14 +124,36 @@ def filter_features(  # noqa: C901
         return features
 
     filtered_features = []
-    substitution = re.compile(r"^[A-Z](\d+)[A-Z]$")
-    insertion = re.compile(r"^.*[A-Z][A-Z]$")
-    deletion = re.compile(r"^del:\d+:\d+$")
+
+    print(feature_type)
+    # Set up the regexes we need based on which type of features the input is
+    # using
+    match feature_type:
+        case "covsonar_dna":
+            substitution = re.compile(r"^[A-Z](\d+)[A-Z]$")
+            insertion = re.compile(r"^.*[A-Z][A-Z]$")
+            deletion = re.compile(r"^del:\d+:\d+$")
+        case "covsonar_aa":
+            substitution = re.compile(r"^[a-zA-Z0-9]+:[A-Z]\d+[A-Z]$")
+            insertion = re.compile(r"^[a-zA-Z0-9]+:[A-Z]\d+[A-Z][A-Z]+$")
+            deletion = re.compile(r"^[a-zA-Z0-9]+:del:\d+:\d+$")
+        case "nextstrain_dna":
+            substitution = re.compile(r"^[A-Z](\d+)[A-Z]$")
+            insertion = re.compile(r"^\d+:[A-Z]+$")
+            deletion = re.compile(r"^\d+(-\d+)?$")
+        case "nextstrain_aa":
+            substitution = re.compile(r"^[a-zA-Z0-9]+:[A-Z]\d+[A-Z*]$")
+            insertion = re.compile(r"^$")
+            deletion = re.compile(r"^[a-zA-Z0-9]+:[A-Z]\d+-$")
+        case _:
+            substitution = re.compile(r"^$")
+            insertion = re.compile(r"^$")
+            deletion = re.compile(r"^$")
     for feature in features:
         d = feature.split(feature_sep)
         new_d = []
         for term in d:
-            if feature_type == "dna":
+            if feature_type != "raw":
                 if submatch := substitution.match(term):
                     # Blindly remove reference and alt NT, leaving the position. Then
                     # check if it is in the regions we want to trim away
