@@ -101,3 +101,25 @@ def test_cache_no_changes(monkeypatch, runner, tmp_path, init_cache):
     input_file = "testfile_caching08_NoChanges.tsv"
     expected = pd.read_table("expected_clusters_caching08_dist1.tsv", sep="\t")
     do_cache_test(input_file, init_cache, tmp_path, expected, monkeypatch, runner)
+
+
+def test_cache_export_dir_missing(monkeypatch, runner, tmp_path):
+    input_file = "testfile.tsv"
+    monkeypatch.chdir(Path(__file__).parent)
+    cache_path = tmp_path / "dir-not-existing" / "cache"
+    result = runner.invoke(
+        console.main,
+        [
+            "--input-file",
+            input_file,
+            "--outdir",
+            str(tmp_path),
+            "--output-cache",
+            str(cache_path),
+            "--max-dist",
+            "1",
+        ],
+    )
+    assert result.exit_code == 0
+    assert cache_path.parent.exists
+    assert cache_path.exists

@@ -1,3 +1,5 @@
+import pathlib
+
 import click
 
 from . import breakfast, __version__
@@ -14,13 +16,13 @@ def only_filter_dna(ctx, param, value):
 
 # fmt: off
 @click.command(context_settings={'show_default': True})
-@click.option("--input-file", type=click.Path(exists=True), help="Input file", required=True)
+@click.option("--input-file", type=click.Path(exists=True, path_type=pathlib.Path), help="Input file", required=True)
 @click.option("--sep", default="\t", help="Input file separator")
-@click.option("--outdir", type=click.Path(), default="output", help="Output directory for all output files")
+@click.option("--outdir", type=click.Path(path_type=pathlib.Path), default="output", help="Output directory for all output files")
 @click.option("--max-dist", type=int, default=1, help="Maximum parwise distance")
 @click.option("--min-cluster-size", type=int, default=2, help="Minimum cluster size")
-@click.option("--input-cache", type=click.Path(exists=True), help="Input cached pickle file from previous run")
-@click.option("--output-cache", type=click.Path(), help="Path to Output cached pickle file")
+@click.option("--input-cache", type=click.Path(exists=True, path_type=pathlib.Path), help="Input cached pickle file from previous run")
+@click.option("--output-cache", type=click.Path(path_type=pathlib.Path), help="Path to Output cached pickle file")
 @click.option("--id-col", default="accession", help="Column with the sequence identifier")
 @click.option("--clust-col", default="dna_profile", help="Metadata column to cluster")
 @click.option("--var-type", type=click.Choice(['dna', 'aa']), default="dna", help="Type of variants", callback=only_filter_dna)
