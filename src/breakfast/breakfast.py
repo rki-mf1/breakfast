@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 from itertools import chain
 
 import networkx
@@ -137,18 +138,24 @@ def filter_features(  # noqa: C901
             substitution = re.compile(r"^[a-zA-Z0-9]+:[A-Z]\d+[A-Z]$")
             insertion = re.compile(r"^[a-zA-Z0-9]+:[A-Z]\d+[A-Z][A-Z]+$")
             deletion = re.compile(r"^[a-zA-Z0-9]+:del:\d+:\d+$")
-        case "nextstrain_dna":
+        case "nextclade_dna":
             substitution = re.compile(r"^[A-Z](\d+)[A-Z]$")
             insertion = re.compile(r"^\d+:[A-Z]+$")
             deletion = re.compile(r"^\d+(-\d+)?$")
-        case "nextstrain_aa":
+        case "nextclade_aa":
             substitution = re.compile(r"^[a-zA-Z0-9]+:[A-Z]\d+[A-Z*]$")
             insertion = re.compile(r"^$")
             deletion = re.compile(r"^[a-zA-Z0-9]+:[A-Z]\d+-$")
+        case "raw":
+            # Dummy regexes that will be skipped anyway
+            substitution = re.compile(r"(?!x)x")
+            insertion = re.compile(r"(?!x)x")
+            deletion = re.compile(r"(?!x)x")
         case _:
-            substitution = re.compile(r"^$")
-            insertion = re.compile(r"^$")
-            deletion = re.compile(r"^$")
+            print(
+                f"The feature type (--var-type) you chose is not supported: '{feature_type}'"
+            )
+            sys.exit(1)
     for feature in features:
         d = feature.split(feature_sep)
         new_d = []
