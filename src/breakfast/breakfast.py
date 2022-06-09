@@ -126,7 +126,6 @@ def filter_features(  # noqa: C901
 
     filtered_features = []
 
-    print(feature_type)
     # Set up the regexes we need based on which type of features the input is
     # using
     match feature_type:
