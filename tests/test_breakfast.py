@@ -128,3 +128,54 @@ def test_missing_id_column(monkeypatch, runner, tmp_path):
         ],
     )
     assert result.exit_code != 0
+
+
+def test_nextclade_file_generated(monkeypatch, runner, tmp_path):
+    input_file = "testfile_nextclade.tsv"
+    monkeypatch.chdir(Path(__file__).parent)
+    runner.invoke(
+        console.main,
+        [
+            "--input-file",
+            input_file,
+            "--outdir",
+            str(tmp_path),
+            "--sep2",
+            ",",
+            "--id-col",
+            "seqName",
+            "--clust-col",
+            "substitutions",
+            "--var-type",
+            "nextclade_dna",
+        ],
+    )
+    assert (tmp_path / "clusters.tsv").exists
+
+
+def test_nextclade_dist0(monkeypatch, runner, tmp_path):
+    input_file = "testfile_nextclade.tsv"
+    monkeypatch.chdir(Path(__file__).parent)
+    result = runner.invoke(
+        console.main,
+        [
+            "--input-file",
+            input_file,
+            "--outdir",
+            str(tmp_path),
+            "--sep2",
+            ",",
+            "--id-col",
+            "seqName",
+            "--clust-col",
+            "substitutions",
+            "--max-dist",
+            "0",
+            "--var-type",
+            "nextclade_dna",
+        ],
+    )
+    assert result.exit_code == 0
+    expected_clustering = pd.read_table("expected_clusters_dist0.tsv", sep="\t")
+    output_clustering = pd.read_table(tmp_path / "clusters.tsv", sep="\t")
+    assert expected_clustering.equals(output_clustering)
