@@ -1,4 +1,5 @@
-import os
+#!/usr/bin/env python
+
 import re
 import sys
 from itertools import chain
@@ -57,11 +58,10 @@ def write_output(meta_nodups, meta_original, outdir):
 
     assert meta_out.shape[0] == meta_original.shape[0]
 
-    if not os.path.exists(outdir):
-        os.makedirs(outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
 
     meta_out[["id", "cluster_id"]].to_csv(
-        os.path.join(outdir, "clusters.tsv"), sep="\t", index=False
+        outdir / "clusters.tsv", sep="\t", index=False
     )
 
 
