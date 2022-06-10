@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import os
 import re
+import sys
 from itertools import chain
 
 import networkx
@@ -9,7 +9,6 @@ import numpy as np
 import pandas as pd
 from networkx.algorithms.components.connected import connected_components
 from scipy.sparse import csr_matrix
-from sklearn.metrics import pairwise_distances_chunked
 
 from . import cache as ca
 
@@ -21,6 +20,7 @@ def read_input(input_file, sep, id_col, feature_col):
         dtype={id_col: str, feature_col: str},
         sep=sep,
     ).rename(columns={id_col: "id", feature_col: "feature"})
+    assert not any(meta.id.duplicated())
     meta.fillna(value={"feature": ""}, inplace=True)
     print(f"Number of sequences: {meta.shape[0]}")
     return meta
@@ -58,11 +58,10 @@ def write_output(meta_nodups, meta_original, outdir):
 
     assert meta_out.shape[0] == meta_original.shape[0]
 
-    if not os.path.exists(outdir):
-        os.makedirs(outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
 
     meta_out[["id", "cluster_id"]].to_csv(
-        os.path.join(outdir, "clusters.tsv"), sep="\t", index=False
+        outdir / "clusters.tsv", sep="\t", index=False
     )
 
 
@@ -110,7 +109,7 @@ def _to_edges(clustered_ids):
         last = current
 
 
-def filter_features(
+def filter_features(  # noqa: C901
     features,
     feature_sep,
     feature_type,
@@ -126,28 +125,61 @@ def filter_features(
         return features
 
     filtered_features = []
-    insertion = re.compile(".*[A-Z][A-Z]$")
+
+    # Set up the regexes we need based on which type of features the input is
+    # using
+    match feature_type:
+        case "covsonar_dna":
+            substitution = re.compile(r"^[A-Z](\d+)[A-Z]$")
+            insertion = re.compile(r"^.*[A-Z][A-Z]$")
+            deletion = re.compile(r"^del:\d+:\d+$")
+        case "covsonar_aa":
+            substitution = re.compile(r"^[a-zA-Z0-9]+:[A-Z]\d+[A-Z]$")
+            insertion = re.compile(r"^[a-zA-Z0-9]+:[A-Z]\d+[A-Z][A-Z]+$")
+            deletion = re.compile(r"^[a-zA-Z0-9]+:del:\d+:\d+$")
+        case "nextclade_dna":
+            substitution = re.compile(r"^[A-Z](\d+)[A-Z]$")
+            insertion = re.compile(r"^\d+:[A-Z]+$")
+            deletion = re.compile(r"^\d+(-\d+)?$")
+        case "nextclade_aa":
+            substitution = re.compile(r"^[a-zA-Z0-9]+:[A-Z]\d+[A-Z*]$")
+            insertion = re.compile(r"^$")
+            deletion = re.compile(r"^[a-zA-Z0-9]+:[A-Z]\d+-$")
+        case "raw":
+            # Dummy regexes that will be skipped anyway
+            substitution = re.compile(r"(?!x)x")
+            insertion = re.compile(r"(?!x)x")
+            deletion = re.compile(r"(?!x)x")
+        case _:
+            print(
+                f"The feature type (--var-type) you chose is not supported: '{feature_type}'"
+            )
+            sys.exit(1)
     for feature in features:
         d = feature.split(feature_sep)
         new_d = []
         for term in d:
-            if term and feature_type == "dna":
-                if term.startswith("del:"):
-                    if skip_del:
-                        continue
-                    pos = int(term.split(":")[1])
-                    if (pos <= trim_start) or (pos >= (reference_length - trim_end)):
-                        continue
-                elif skip_ins and insertion.match(term) is not None:
-                    continue
-                else:
+            if feature_type != "raw":
+                if submatch := substitution.match(term):
                     # Blindly remove reference and alt NT, leaving the position. Then
                     # check if it is in the regions we want to trim away
-                    pos = int(term.translate(str.maketrans("", "", "ACGTN")))
+                    pos = int(submatch.group(1))
                     if (pos <= trim_start) or (pos >= (reference_length - trim_end)):
                         continue
+                elif insertion.match(term):
+                    if skip_ins:
+                        continue
+                elif deletion.match(term):
+                    if skip_del:
+                        continue
+                else:
+                    print(f"Skipping invalid feature: '{term}'")
+                    continue
+            # Skip features that are empty strings ("")
+            if not term:
+                continue
             new_d.append(term)
-        filtered_features.append(" ".join(new_d))
+        filtered_features.append(feature_sep.join(new_d))
     return filtered_features
 
 
@@ -211,6 +243,11 @@ def get_neighbours_batch(
 
     fmatrix = fmatrix[close_enough, :]
     fmatrix_batch = fmatrix_batch[close_enough_batch, :]
+
+    # We "lazy import" this function because the number of threads
+    # (=OMP_NUM_THREADS env variable) needs to be set before the import
+    # happens, and we can't do that if the import is at the top of the file
+    from sklearn.metrics import pairwise_distances_chunked
 
     gen = pairwise_distances_chunked(
         X=fmatrix_batch,

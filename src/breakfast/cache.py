@@ -25,6 +25,7 @@ def save(output_file, neigh, meta, max_dist):
             "neigh": neigh,
             "meta": meta[["id", "feature"]],
         }
+        output_file.parent.mkdir(parents=True, exist_ok=True)
         with gzip.open(output_file, "wb") as f:
             cPickle.dump(d, f, 2)  # protocol 2, python > 2.3
     except TypeError:
