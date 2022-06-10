@@ -179,7 +179,7 @@ def filter_features(  # noqa: C901
             if not term:
                 continue
             new_d.append(term)
-        filtered_features.append(" ".join(new_d))
+        filtered_features.append(feature_sep.join(new_d))
     return filtered_features
 
 
