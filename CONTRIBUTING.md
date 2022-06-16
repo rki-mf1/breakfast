@@ -83,7 +83,7 @@ git push
 
 Then tag the commit with the same version number (note the "v" prefix), push the code and push the tag:
 
-```
+```sh
 git tag v0.3.1
 git push origin v0.3.1
 ```
@@ -91,3 +91,56 @@ git push origin v0.3.1
 Now go to github.com and do a release, selecting the version number tag you just pushed. This will automatically trigger the new version being tested and pushed to PyPI if the tests pass.
 
 If you followed the bioconda instructions above, the new pypi package will be detected automatically and trigger a GitHub pull request for the conda package to be updated as well. After that is reviewed and approved, the bioconda package will be updated. No interaction is necessary, although you might have to do something extra if you change your package dependencies.
+
+### Updating the python version dependency
+
+Aside from updating package dependencies, it is also sometimes useful to update the dependency on python itself. One way to do this is to edit the pyproject.toml file and change the python version description. Versions can be specified using constraints that are documented in the [poetry docs](https://python-poetry.org/docs/dependency-specification/):
+
+```
+[tool.poetry.dependencies]
+python = "^3.10"  # <-- this
+```
+
+Afterwards, you need to use poetry to update the poetry.lock file to reflect the change that you just made to the  pyproject.toml file. Be sure to use the `--no-update` flag to not update the locked versions of all dependency packages.
+
+```sh
+poetry lock --no-update
+```
+
+Then you need to run your tests to make sure everything is working, commit and push the changes.
+
+You might also need to update/change the version of python in your conda environment, but I'm not certain about that.
+
+### Updating the bioconda package when dependencies, dependency versions, or the python version has been changed
+
+For package updates that don't lead to added/removed dependencies, changes to dependency versions, or changes to the allowed python version, a normal release (as above) is sufficient to automatically update both the PyPI and bioconda packages. However, for changes that do result in changes to dependencies it is necessary to update the bioconda meta.yml file. This is explained in [bioconda docs](https://bioconda.github.io/contributor/updating.html), and they also provide tools to help you with this.
+
+TODO: document this process. I haven't had to do one of these updates yet.
+
+### Conda and poetry virtual environment problems
+
+When you first run poetry, it will detect some virtual environments on the system. In our case it should detect the conda env you currently have active and set that as the default for poetry. You can check that:
+
+```
+$ poetry env info
+
+Virtualenv
+Python:         3.10.4
+Implementation: CPython
+Path:           /home/<redacted>/.conda/envs/breakfast-dev
+Valid:          True
+
+System
+Platform: linux
+OS:       posix
+Python:   /home/<redacted>/.conda/envs/breakfast-dev
+```
+
+If you decide to rename your conda development environment or have multiple projects and decide to use multiple conda environments, then you might have to switch the environment that poetry is using. This can be done by running the commands:
+
+```
+conda activate my-new-dev-env
+poetry env use "$CONDA_PREFIX"
+```
+
+Note that the new environment needs to have poetry installed in this case.
