@@ -9,7 +9,7 @@ homepage = "https://github.com/rki-mf1/breakfast"
 repository = "https://github.com/rki-mf1/breakfast"
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.11"
+python = "^3.10"
 networkx = "^2.8"
 pandas = "^1.4.2"
 scikit-learn = "^1.0.2"
