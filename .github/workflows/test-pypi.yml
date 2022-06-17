@@ -2,9 +2,9 @@ name: TestPyPI
 on:
   push:
     branches:
-      - testpypi
+      - develop
 jobs:
-  test_pypi:
+  release:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -12,14 +12,10 @@ jobs:
       with:
         python-version: '3.10'
         architecture: x64
+    - run: pip install nox==2022.1.7
     - run: pip install poetry==1.1.13
-    - run: >-
-        poetry version patch &&
-        version=$(poetry version | awk '{print $2}') &&
-        poetry version $version.dev.$(date +%s)
+    - run: nox
+    - run: version=$(poetry version --short) && poetry version $version.dev.$(date +%s)
     - run: poetry build
-    - uses: pypa/gh-action-pypi-publish@v1.0.0a0
-      with:
-        user: __token__
-        password: ${{ secrets.TEST_PYPI_TOKEN }}
-        repository_url: https://test.pypi.org/legacy/
+    - run: poetry config repositories.test-pypi https://test.pypi.org/legacy/
+    - run: poetry publish --repository test-pypi --username=__token__ --password=${{ secrets.TEST_PYPI_TOKEN }}
