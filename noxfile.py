@@ -37,7 +37,7 @@ def install_with_constraints(session: Session, *args: str, **kwargs: Any) -> Non
         session.install(f"--constraint={requirements.name}", *args, **kwargs)
 
 
-@nox.session(python="3.10")
+@nox.session(python="3.9")
 def black(session: Session) -> None:
     """Run black code formatter."""
     args = session.posargs or locations
@@ -45,7 +45,7 @@ def black(session: Session) -> None:
     session.run("black", *args)
 
 
-@nox.session(python="3.10")
+@nox.session(python="3.9")
 def lint(session: Session) -> None:
     """Lint using flake8."""
     args = session.posargs or locations
@@ -63,7 +63,7 @@ def lint(session: Session) -> None:
     session.run("flake8", *args)
 
 
-@nox.session(python=["3.10"])
+@nox.session(python=["3.10", "3.9"])
 def tests(session):
     args = session.posargs or ["--cov"]
     session.run("poetry", "install", "--no-dev", external=True)

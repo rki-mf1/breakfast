@@ -128,33 +128,32 @@ def filter_features(  # noqa: C901
 
     # Set up the regexes we need based on which type of features the input is
     # using
-    match feature_type:
-        case "covsonar_dna":
-            substitution = re.compile(r"^[A-Z](\d+)[A-Z]$")
-            insertion = re.compile(r"^.*[A-Z][A-Z]$")
-            deletion = re.compile(r"^del:\d+:\d+$")
-        case "covsonar_aa":
-            substitution = re.compile(r"^[a-zA-Z0-9]+:[A-Z]\d+[A-Z]$")
-            insertion = re.compile(r"^[a-zA-Z0-9]+:[A-Z]\d+[A-Z][A-Z]+$")
-            deletion = re.compile(r"^[a-zA-Z0-9]+:del:\d+:\d+$")
-        case "nextclade_dna":
-            substitution = re.compile(r"^[A-Z](\d+)[A-Z]$")
-            insertion = re.compile(r"^\d+:[A-Z]+$")
-            deletion = re.compile(r"^\d+(-\d+)?$")
-        case "nextclade_aa":
-            substitution = re.compile(r"^[a-zA-Z0-9]+:[A-Z]\d+[A-Z*]$")
-            insertion = re.compile(r"^$")
-            deletion = re.compile(r"^[a-zA-Z0-9]+:[A-Z]\d+-$")
-        case "raw":
-            # Dummy regexes that will be skipped anyway
-            substitution = re.compile(r"(?!x)x")
-            insertion = re.compile(r"(?!x)x")
-            deletion = re.compile(r"(?!x)x")
-        case _:
-            print(
-                f"The feature type (--var-type) you chose is not supported: '{feature_type}'"
-            )
-            sys.exit(1)
+    if feature_type == "covsonar_dna":
+        substitution = re.compile(r"^[A-Z](\d+)[A-Z]$")
+        insertion = re.compile(r"^.*[A-Z][A-Z]$")
+        deletion = re.compile(r"^del:\d+:\d+$")
+    elif feature_type == "covsonar_aa":
+        substitution = re.compile(r"^[a-zA-Z0-9]+:[A-Z]\d+[A-Z]$")
+        insertion = re.compile(r"^[a-zA-Z0-9]+:[A-Z]\d+[A-Z][A-Z]+$")
+        deletion = re.compile(r"^[a-zA-Z0-9]+:del:\d+:\d+$")
+    elif feature_type == "nextclade_dna":
+        substitution = re.compile(r"^[A-Z](\d+)[A-Z]$")
+        insertion = re.compile(r"^\d+:[A-Z]+$")
+        deletion = re.compile(r"^\d+(-\d+)?$")
+    elif feature_type == "nextclade_aa":
+        substitution = re.compile(r"^[a-zA-Z0-9]+:[A-Z]\d+[A-Z*]$")
+        insertion = re.compile(r"^$")
+        deletion = re.compile(r"^[a-zA-Z0-9]+:[A-Z]\d+-$")
+    elif feature_type == "raw":
+        # Dummy regexes that will be skipped anyway
+        substitution = re.compile(r"(?!x)x")
+        insertion = re.compile(r"(?!x)x")
+        deletion = re.compile(r"(?!x)x")
+    else:
+        print(
+            f"The feature type (--var-type) you chose is not supported: '{feature_type}'"
+        )
+        sys.exit(1)
     for feature in features:
         d = feature.split(feature_sep)
         new_d = []
