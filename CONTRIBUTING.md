@@ -84,8 +84,9 @@ git push
 Then tag the commit with the same version number (note the "v" prefix), push the code and push the tag:
 
 ```sh
-git tag v0.3.1
-git push origin v0.3.1
+NEW_VERSION=v$(poetry version -s)
+git tag "$NEW_VERSION"
+git push origin "$NEW_VERSION"
 ```
 
 Now go to github.com and do a release, selecting the version number tag you just pushed. This will automatically trigger the new version being tested and pushed to PyPI if the tests pass.
