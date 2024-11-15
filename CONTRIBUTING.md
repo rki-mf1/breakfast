@@ -14,16 +14,16 @@ breakfast is written in Python and tries to follow the excellent packaging guide
 
 ### Setting up your development tools
 
-Some tooling needs to be set up before you can work on breakfast. To install this we use mamba, a faster replacement for the conda package manager, and place them in their own environment:
+Some tooling needs to be set up before you can work on breakfast. To install this we use conda, and place them in their own environment:
 
 ```sh
-mamba create -n breakfast-dev python=3 poetry fortran-compiler nox pre-commit
+conda env create -n breakfast-dev -f envs/breakfast-dev.yml
 ```
 
 Then when you want to work on the project, or at the very least if you want to use poetry commands or run tests, you need to switch to this environment:
 
 ```sh
-mamba activate breakfast-dev
+conda activate breakfast-dev
 ```
 
 The rest of this document assumes that you have the breakfast-dev environment active.
