@@ -8,7 +8,8 @@ from nox.sessions import Session
 
 package = "breakfast"
 nox.options.sessions = "lint", "tests"
-locations = "src", "tests", "noxfile.py"
+nox.options.default_venv_backend = "conda"
+locations = "src", "tests", "./noxfile.py"
 
 
 def install_with_constraints(session: Session, *args: str, **kwargs: Any) -> None:
@@ -25,23 +26,32 @@ def install_with_constraints(session: Session, *args: str, **kwargs: Any) -> Non
         kwargs: Additional keyword arguments for Session.install.
     """
     with tempfile.NamedTemporaryFile() as requirements:
+        # Hide a warning that I have already handled
+        session.run(
+            "poetry",
+            "config",
+            "warnings.export",
+            "false",
+            external=True,
+        )
         session.run(
             "poetry",
             "export",
-            "--dev",
+            "--with",
+            "dev",
             "--format=requirements.txt",
             "--without-hashes",
             f"--output={requirements.name}",
             external=True,
         )
-        session.install(f"--constraint={requirements.name}", *args, **kwargs)
+        session.install("-r", requirements.name, *args, **kwargs)
 
 
 @nox.session(python="3.9")
 def black(session: Session) -> None:
     """Run black code formatter."""
     args = session.posargs or locations
-    install_with_constraints(session, "black")
+    install_with_constraints(session)
     session.run("black", *args)
 
 
@@ -66,6 +76,6 @@ def lint(session: Session) -> None:
 @nox.session(python=["3.10", "3.9"])
 def tests(session):
     args = session.posargs or ["--cov"]
-    session.run("poetry", "install", "--no-dev", external=True)
-    install_with_constraints(session, "coverage[toml]", "pytest", "pytest-cov")
+    session.run("poetry", "install", "--without", "dev", external=True)
+    install_with_constraints(session)
     session.run("pytest", *args)

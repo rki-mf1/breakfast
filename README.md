@@ -15,9 +15,9 @@
 Breakfast is available in [bioconda](http://bioconda.github.io/recipes/breakfast/README.html). You can install it using either the conda command, or if you've installed [mamba](https://github.com/mamba-org/mamba) you can use that:
 
 ```
-$ conda install breakfast
+$ conda install -c bioconda breakfast
 # or
-$ mamba install breakfast
+$ mamba install -c bioconda breakfast
 ```
 
 ### Installation using pip
@@ -43,7 +43,7 @@ You will find your results in `test-run/cluster.tsv`, which should be identical 
 
 ### Using breakfast with input from covsonar
 
-breakfast uses pre-calculated sequence features (= mutations) as input rather than raw sequences. These features can be calculated with several different programs, but the one we mainly use is [covSonar](https://github.com/rki-mf1/covsonar). It can be used to maintain a database of mutations for a large number of sequences, which can then be easily queried.
+breakfast uses pre-calculated sequence features (= mutations) as input rather than raw sequences. These features can be calculated with several different programs, but the one we mainly use is [covsonar](https://github.com/rki-mf1/covsonar). It can be used to maintain a database of mutations for a large number of sequences, which can then be easily queried.
 
 ```
 conda activate sonar
