@@ -1,12 +1,19 @@
-[tool.poetry]
+[project]
 name = "breakfast"
 version = "0.4.5"
-description = "breakfast: fast putative outbreak cluster and infection chain detection using SNPs"
-authors = ["Matthew Huska <HuskaM@rki.de>", "Denis Beslic <BeslicD@rki.de>"]
-license = "MIT"
+description = "Fast putative outbreak cluster and infection chain detection using SNPs."
 readme = "README.md"
-homepage = "https://github.com/rki-mf1/breakfast"
+license = "MIT"
+authors = [
+  {name = "Matthew Huska", email = "HuskaM@rki.de"},
+  {name = "Denis Beslic", email = "BeslicD@rki.de"},
+]
+
+[project.urls]
 repository = "https://github.com/rki-mf1/breakfast"
+
+[project.scripts]
+breakfast = "breakfast.console:main"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
@@ -25,9 +32,6 @@ black = "^24.10.0"
 flake8 = "^7.1.1"
 flake8-black = "^0.3.2"
 flake8-import-order = "^0.18.1"
-
-[tool.poetry.scripts]
-breakfast = "breakfast.console:main"
 
 [tool.coverage.paths]
 source = ["src", "*/site-packages"]
