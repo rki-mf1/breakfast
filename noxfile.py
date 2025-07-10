@@ -27,14 +27,6 @@ def install_with_constraints(session: Session, *args: str, **kwargs: Any) -> Non
         kwargs: Additional keyword arguments for Session.install.
     """
     with tempfile.NamedTemporaryFile() as requirements:
-        # Hide a warning that I have already handled
-        session.run(
-            "poetry",
-            "config",
-            "warnings.export",
-            "false",
-            external=True,
-        )
         session.run(
             "poetry",
             "export",
