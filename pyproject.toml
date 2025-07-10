@@ -1,6 +1,6 @@
 [project]
 name = "breakfast"
-version = "0.4.5"
+version = "0.4.6"
 description = "Fast putative outbreak cluster and infection chain detection using SNPs."
 readme = "README.md"
 license = "MIT"
