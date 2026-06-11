@@ -6,6 +6,11 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+    permissions:
+      id-token: write
+      contents: read
     steps:
     - uses: actions/checkout@v6
     - uses: astral-sh/setup-uv@v8.2.0
@@ -19,6 +24,3 @@ jobs:
     - run: version=$(uv version --short) && uv version "$version.dev.$(date +%s)"
     - run: uv build
     - run: uv publish --publish-url https://test.pypi.org/legacy/
-      env:
-        UV_PUBLISH_USERNAME: __token__
-        UV_PUBLISH_PASSWORD: ${{ secrets.TEST_PYPI_TOKEN }}
