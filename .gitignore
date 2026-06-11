@@ -3,6 +3,8 @@
 /.nox/
 /.python-version
 /.pytype/
+/.uv-cache/
+/.venv/
 /docs/_build/
 /src/*.egg-info/
 __pycache__/
