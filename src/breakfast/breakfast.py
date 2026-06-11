@@ -20,7 +20,10 @@ def read_input(input_file, sep, id_col, feature_col):
         dtype={id_col: str, feature_col: str},
         sep=sep,
     ).rename(columns={id_col: "id", feature_col: "feature"})
-    assert not any(meta.id.duplicated())
+    duplicate_ids = meta.loc[meta.id.duplicated(), "id"].unique()
+    if duplicate_ids.size > 0:
+        duplicates = ", ".join(duplicate_ids)
+        raise ValueError(f"Duplicate sequence identifiers found: {duplicates}")
     meta.fillna(value={"feature": ""}, inplace=True)
     print(f"Number of sequences: {meta.shape[0]}")
     return meta
@@ -161,10 +164,14 @@ def filter_features(  # noqa: C901
             if feature_type != "raw":
                 if submatch := substitution.match(term):
                     # Blindly remove reference and alt NT, leaving the position. Then
-                    # check if it is in the regions we want to trim away
-                    pos = int(submatch.group(1))
-                    if (pos <= trim_start) or (pos >= (reference_length - trim_end)):
-                        continue
+                    # check if it is in the regions we want to trim away. AA
+                    # substitution regexes do not include a position group.
+                    if submatch.lastindex:
+                        pos = int(submatch.group(1))
+                        if (pos <= trim_start) or (
+                            pos >= (reference_length - trim_end)
+                        ):
+                            continue
                 elif insertion.match(term):
                     if skip_ins:
                         continue
@@ -197,6 +204,8 @@ def sparse_feature_matrix(features, feature_sep):
             else:
                 d = [subt]
         for term in d:
+            if not term:
+                continue
             index = vocabulary.setdefault(term, len(vocabulary))
             indices.append(index)
             data.append(1)

@@ -4,7 +4,7 @@ import click.testing
 import pandas as pd
 import pytest
 
-from breakfast import console
+from breakfast import breakfast, console
 
 
 @pytest.fixture
@@ -29,8 +29,11 @@ def test_simplerun(monkeypatch, runner, tmp_path):
 def test_file_generated(monkeypatch, runner, tmp_path):
     input_file = "testfile.tsv"
     monkeypatch.chdir(Path(__file__).parent)
-    runner.invoke(console.main, ["--input-file", input_file, "--outdir", str(tmp_path)])
-    assert (tmp_path / "clusters.tsv").exists
+    result = runner.invoke(
+        console.main, ["--input-file", input_file, "--outdir", str(tmp_path)]
+    )
+    assert result.exit_code == 0
+    assert (tmp_path / "clusters.tsv").exists()
 
 
 def test_dist0(monkeypatch, runner, tmp_path):
@@ -92,6 +95,13 @@ def test_duplicate_ids(monkeypatch, runner, tmp_path):
     assert result.exit_code != 0
 
 
+def test_duplicate_ids_raise_explicit_error(monkeypatch):
+    input_file = "duplicate-ids.tsv"
+    monkeypatch.chdir(Path(__file__).parent)
+    with pytest.raises(ValueError, match="Duplicate sequence identifiers"):
+        breakfast.read_input(input_file, "\t", "accession", "dna_profile")
+
+
 def test_missing_feature_column(monkeypatch, runner, tmp_path):
     input_file = "testfile.tsv"
     monkeypatch.chdir(Path(__file__).parent)
@@ -104,7 +114,7 @@ def test_missing_feature_column(monkeypatch, runner, tmp_path):
             str(tmp_path),
             "--max-dist",
             "1",
-            "--cluster-col",
+            "--clust-col",
             "somethingmissing",
         ],
     )
@@ -133,7 +143,7 @@ def test_missing_id_column(monkeypatch, runner, tmp_path):
 def test_raw_file_generated(monkeypatch, runner, tmp_path):
     input_file = "testfile.tsv"
     monkeypatch.chdir(Path(__file__).parent)
-    runner.invoke(
+    result = runner.invoke(
         console.main,
         [
             "--input-file",
@@ -145,11 +155,35 @@ def test_raw_file_generated(monkeypatch, runner, tmp_path):
             "--trim-end",
             "0",
             "--no-skip-del",
-            "--no-skip-ins" "--var-type",
+            "--no-skip-ins",
+            "--var-type",
             "raw",
         ],
     )
-    assert (tmp_path / "clusters.tsv").exists
+    assert result.exit_code == 0
+    assert (tmp_path / "clusters.tsv").exists()
+
+
+def test_raw_defaults_succeed(monkeypatch, runner, tmp_path):
+    input_file = "testfile.tsv"
+    monkeypatch.chdir(Path(__file__).parent)
+    result = runner.invoke(
+        console.main,
+        [
+            "--input-file",
+            input_file,
+            "--outdir",
+            str(tmp_path),
+            "--var-type",
+            "raw",
+        ],
+    )
+    assert result.exit_code == 0
+    expected_clustering = pd.read_table(
+        "expected_clusters_dist1_noskipdel.tsv", sep="\t"
+    )
+    output_clustering = pd.read_table(tmp_path / "clusters.tsv", sep="\t")
+    assert expected_clustering.equals(output_clustering)
 
 
 def test_raw_dist1(monkeypatch, runner, tmp_path):
@@ -183,7 +217,7 @@ def test_raw_dist1(monkeypatch, runner, tmp_path):
 def test_nextclade_file_generated(monkeypatch, runner, tmp_path):
     input_file = "testfile_nextclade.tsv"
     monkeypatch.chdir(Path(__file__).parent)
-    runner.invoke(
+    result = runner.invoke(
         console.main,
         [
             "--input-file",
@@ -200,7 +234,8 @@ def test_nextclade_file_generated(monkeypatch, runner, tmp_path):
             "nextclade_dna",
         ],
     )
-    assert (tmp_path / "clusters.tsv").exists
+    assert result.exit_code == 0
+    assert (tmp_path / "clusters.tsv").exists()
 
 
 def test_nextclade_dist0(monkeypatch, runner, tmp_path):
