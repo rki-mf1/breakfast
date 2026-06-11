@@ -8,15 +8,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - uses: actions/setup-python@v5
+    - uses: astral-sh/setup-uv@v8.2.0
       with:
-        python-version: '3.12'
-        architecture: x64
-    - run: pip install nox==2025.5.1
-    - run: pip install poetry==2.1.3
-    - run: pip install poetry-plugin-export==1.9.0
-    - run: nox
-    - run: version=$(poetry version --short) && poetry version $version.dev.$(date +%s)
-    - run: poetry build
-    - run: poetry config repositories.test-pypi https://test.pypi.org/legacy/
-    - run: poetry publish --repository test-pypi --username=__token__ --password=${{ secrets.TEST_PYPI_TOKEN }}
+        enable-cache: true
+    - run: uv python install 3.12
+    - run: uv sync --locked --group dev --python 3.12
+    - run: uv run ruff format --check src tests
+    - run: uv run ruff check src tests
+    - run: uv run pytest --cov
+    - run: version=$(uv version --short) && uv version "$version.dev.$(date +%s)"
+    - run: uv build
+    - run: uv publish --publish-url https://test.pypi.org/legacy/
+      env:
+        UV_PUBLISH_USERNAME: __token__
+        UV_PUBLISH_PASSWORD: ${{ secrets.TEST_PYPI_TOKEN }}
