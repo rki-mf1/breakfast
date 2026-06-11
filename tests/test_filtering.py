@@ -97,10 +97,3 @@ def test_sparse_feature_matrix_ignores_empty_features():
     assert matrix.shape == (2, 1)
     assert matrix[0].count_nonzero() == 0
     assert matrix[1].count_nonzero() == 1
-
-
-# def test_filter_invalid_dna_sub():
-#     features = ["C241t"]
-#     expected = ["C241T"]
-#     filtered = breakfast.filter_features(features, ",", "covsonar_dna", True, False, 0, 0, 1000)
-#     assert filtered[0] == expected[0]
