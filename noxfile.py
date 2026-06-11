@@ -6,7 +6,6 @@ from typing import Any
 import nox
 from nox.sessions import Session
 
-
 package = "breakfast"
 nox.options.sessions = "lint", "tests"
 nox.options.default_venv_backend = "conda"
@@ -41,29 +40,20 @@ def install_with_constraints(session: Session, *args: str, **kwargs: Any) -> Non
 
 
 @nox.session(python="3.12")
-def black(session: Session) -> None:
-    """Run black code formatter."""
+def format(session: Session) -> None:
+    """Run Ruff code formatter."""
     args = session.posargs or locations
     install_with_constraints(session)
-    session.run("black", *args)
+    session.run("ruff", "format", *args)
 
 
 @nox.session(python="3.12")
 def lint(session: Session) -> None:
-    """Lint using flake8."""
+    """Lint and check formatting using Ruff."""
     args = session.posargs or locations
-    install_with_constraints(
-        session,
-        "flake8",
-        "flake8-annotations",
-        "flake8-bandit",
-        "flake8-black",
-        "flake8-bugbear",
-        "flake8-docstrings",
-        "flake8-import-order",
-        "darglint",
-    )
-    session.run("flake8", *args)
+    install_with_constraints(session)
+    session.run("ruff", "format", "--check", *args)
+    session.run("ruff", "check", *args)
 
 
 @nox.session(python=["3.11", "3.12"])

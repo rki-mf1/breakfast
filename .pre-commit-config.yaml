@@ -4,16 +4,18 @@ repos:
     hooks:
     -   id: check-yaml
     -   id: end-of-file-fixer
+        exclude: ^tests/.*\.tsv$
     -   id: trailing-whitespace
+        exclude: ^tests/.*\.tsv$
 -   repo: local
     hooks:
-    -   id: black
-        name: black
-        entry: poetry run black
+    -   id: ruff-format
+        name: ruff format
+        entry: poetry run ruff format
         language: system
         types: [python]
-    -   id: flake8
-        name: flake8
-        entry: poetry run flake8
+    -   id: ruff-check
+        name: ruff check
+        entry: poetry run ruff check
         language: system
         types: [python]

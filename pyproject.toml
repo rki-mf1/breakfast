@@ -28,10 +28,21 @@ click = "^8.1.7"
 pytest = "^8.3.3"
 coverage = "^7.6.6"
 pytest-cov = "^6.0.0"
-black = "^24.10.0"
-flake8 = "^7.1.1"
-flake8-black = "^0.3.2"
-flake8-import-order = "^0.18.1"
+ruff = ">=0.8,<1.0"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "C90", "I", "B", "S", "RUF"]
+ignore = ["E501"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]
 
 [tool.coverage.paths]
 source = ["src", "*/site-packages"]

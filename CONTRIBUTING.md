@@ -45,7 +45,7 @@ Some basic tests have been implemented. They can be run using nox:
 nox
 ```
 
-This will run the tests in the `tests/` folder, as well as linting using flake8 and code formatting checks using black.
+This will run the tests in the `tests/` folder, as well as linting and code formatting checks using Ruff.
 
 See Hypermodern Python [part 2](https://cjolowicz.github.io/posts/hypermodern-python-02-testing/) and [part 3](https://cjolowicz.github.io/posts/hypermodern-python-03-linting/) for more details.
 
