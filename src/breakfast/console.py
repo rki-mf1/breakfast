@@ -4,30 +4,84 @@ import pathlib
 import click
 from click.core import ParameterSource
 
-from . import breakfast, __version__
+from . import __version__, breakfast
 
 
-# fmt: off
-@click.command(context_settings={'show_default': True})
-@click.option("--input-file", type=click.Path(exists=True, path_type=pathlib.Path), help="Input file", required=True)
+@click.command(context_settings={"show_default": True})
+@click.option(
+    "--input-file",
+    type=click.Path(exists=True, path_type=pathlib.Path),
+    help="Input file",
+    required=True,
+)
 @click.option("--sep", default="\t", help="Input file separator")
-@click.option("--outdir", type=click.Path(path_type=pathlib.Path), default="output", help="Output directory for all output files")
-@click.option("--max-dist", type=click.IntRange(0), default=1, help="Maximum parwise distance")
-@click.option("--min-cluster-size", type=click.IntRange(1), default=2, help="Minimum cluster size")
-@click.option("--input-cache", type=click.Path(exists=True, path_type=pathlib.Path), help="Input cached pickle file from previous run")
-@click.option("--output-cache", type=click.Path(path_type=pathlib.Path), help="Path to Output cached pickle file")
-@click.option("--id-col", default="accession", help="Column with the sequence identifier")
+@click.option(
+    "--outdir",
+    type=click.Path(path_type=pathlib.Path),
+    default="output",
+    help="Output directory for all output files",
+)
+@click.option(
+    "--max-dist", type=click.IntRange(0), default=1, help="Maximum parwise distance"
+)
+@click.option(
+    "--min-cluster-size", type=click.IntRange(1), default=2, help="Minimum cluster size"
+)
+@click.option(
+    "--input-cache",
+    type=click.Path(exists=True, path_type=pathlib.Path),
+    help="Input cached pickle file from previous run",
+)
+@click.option(
+    "--output-cache",
+    type=click.Path(path_type=pathlib.Path),
+    help="Path to Output cached pickle file",
+)
+@click.option(
+    "--id-col", default="accession", help="Column with the sequence identifier"
+)
 @click.option("--clust-col", default="dna_profile", help="Metadata column to cluster")
-@click.option("--var-type", type=click.Choice(['covsonar_dna', 'covsonar_aa', 'nextclade_dna', 'nextclade_aa', 'raw']), default="covsonar_dna", help="Type of variants")
-@click.option("--sep2", default=" ", help="Secondary clustering column separator (between each mutation)")
-@click.option("--trim-start", type=click.IntRange(0), default=264, help="Bases to trim from the beginning (0 = disable)")
-@click.option("--trim-end", type=click.IntRange(0), default=228, help="Bases to trim from the end (0 = disable)")
-@click.option("--reference-length", type=click.IntRange(0), default=29903, help="Length of reference genome (defaults to NC_045512.2 length)")
+@click.option(
+    "--var-type",
+    type=click.Choice(
+        ["covsonar_dna", "covsonar_aa", "nextclade_dna", "nextclade_aa", "raw"]
+    ),
+    default="covsonar_dna",
+    help="Type of variants",
+)
+@click.option(
+    "--sep2",
+    default=" ",
+    help="Secondary clustering column separator (between each mutation)",
+)
+@click.option(
+    "--trim-start",
+    type=click.IntRange(0),
+    default=264,
+    help="Bases to trim from the beginning (0 = disable)",
+)
+@click.option(
+    "--trim-end",
+    type=click.IntRange(0),
+    default=228,
+    help="Bases to trim from the end (0 = disable)",
+)
+@click.option(
+    "--reference-length",
+    type=click.IntRange(0),
+    default=29903,
+    help="Length of reference genome (defaults to NC_045512.2 length)",
+)
 @click.option("--skip-del/--no-skip-del", default=True, help="Skip deletions")
 @click.option("--skip-ins/--no-skip-ins", default=True, help="Skip insertions")
-@click.option("--jobs", type=click.IntRange(1), default=1, envvar="OMP_NUM_THREADS", help="Number of jobs (threads) to run simultaneously")
+@click.option(
+    "--jobs",
+    type=click.IntRange(1),
+    default=1,
+    envvar="OMP_NUM_THREADS",
+    help="Number of jobs (threads) to run simultaneously",
+)
 @click.version_option(version=__version__)
-# fmt: on
 def main(
     input_file,
     outdir,

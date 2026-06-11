@@ -1,5 +1,5 @@
-import gzip
 import _pickle as cPickle
+import gzip
 
 import pandas as pd
 
@@ -58,11 +58,11 @@ def update_neighbours(neigh, fmap):
     # Create a list that can do lookups in O(1)
     max_idx = int(max(fmap["idx_cache"].dropna()))
     c2n = [None] * (max_idx + 1)
-    for idx, row in fmap.dropna().iterrows():
+    for _idx, row in fmap.dropna().iterrows():
         c2n[int(row["idx_cache"])] = int(row["idx_new"])
 
     neigh_updated = []
-    for i, nlist in enumerate(neigh):
+    for nlist in neigh:
         nlist_updated = [c2n[item] for item in nlist]
         nlist_updated = [x for x in nlist_updated if x is not None]
         if len(nlist_updated) > 0:

@@ -35,7 +35,7 @@ def write_output(meta_nodups, meta_original, outdir):
     meta_accession = []
     accession_list = meta_nodups["id"].tolist()
     cluster_ids = meta_nodups["cluster_id"].tolist()
-    for accession, clust_id in zip(accession_list, cluster_ids):
+    for accession, clust_id in zip(accession_list, cluster_ids, strict=True):
         for seq_id in accession:
             meta_accession.append(seq_id)
             meta_clusterid.append(clust_id)
@@ -59,7 +59,8 @@ def write_output(meta_nodups, meta_original, outdir):
     replacer = dict_id.get
     meta_out["cluster_id"] = [replacer(n, n) for n in meta_out["cluster_id"].tolist()]
 
-    assert meta_out.shape[0] == meta_original.shape[0]
+    if meta_out.shape[0] != meta_original.shape[0]:
+        raise RuntimeError("Output row count differs from input row count")
 
     outdir.mkdir(parents=True, exist_ok=True)
 
