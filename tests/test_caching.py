@@ -31,7 +31,7 @@ def init_cache(monkeypatch, runner, tmp_path):
         ],
     )
     assert result.exit_code == 0
-    assert cache_path.exists
+    assert cache_path.exists()
     return cache_path
 
 
@@ -121,5 +121,5 @@ def test_cache_export_dir_missing(monkeypatch, runner, tmp_path):
         ],
     )
     assert result.exit_code == 0
-    assert cache_path.parent.exists
-    assert cache_path.exists
+    assert cache_path.parent.exists()
+    assert cache_path.exists()

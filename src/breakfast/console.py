@@ -2,6 +2,7 @@ import os
 import pathlib
 
 import click
+from click.core import ParameterSource
 
 from . import breakfast, __version__
 
@@ -47,12 +48,27 @@ def main(
     jobs,
 ):
 
-    # Trimming and skipping indels is not currently implemented for amino acid features
+    # Trimming and skipping indels is not supported for non-DNA features. The
+    # CLI defaults are DNA-oriented, so ignore those defaults for other modes.
     if var_type not in ["covsonar_dna", "nextclade_dna"]:
-        if trim_start != 0 or trim_end != 0:
+        ctx = click.get_current_context()
+        trim_start_source = ctx.get_parameter_source("trim_start")
+        trim_end_source = ctx.get_parameter_source("trim_end")
+        skip_del_source = ctx.get_parameter_source("skip_del")
+        skip_ins_source = ctx.get_parameter_source("skip_ins")
+
+        if trim_start != 0 and trim_start_source != ParameterSource.DEFAULT:
             raise click.BadParameter("Can not trim non-DNA features")
-        if skip_ins or skip_del:
+        if trim_end != 0 and trim_end_source != ParameterSource.DEFAULT:
+            raise click.BadParameter("Can not trim non-DNA features")
+        if skip_del and skip_del_source == ParameterSource.COMMANDLINE:
             raise click.BadParameter("Can not skip indels in non-DNA features")
+        if skip_ins and skip_ins_source == ParameterSource.COMMANDLINE:
+            raise click.BadParameter("Can not skip indels in non-DNA features")
+        trim_start = 0
+        trim_end = 0
+        skip_del = False
+        skip_ins = False
 
     # Can't trim more than the reference length
     if trim_start > reference_length or trim_end > reference_length:
