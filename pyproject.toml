@@ -28,7 +28,7 @@ breakfast = "breakfast.console:main"
 dev = [
   "coverage>=7.6.6,<8.0.0",
   "pytest>=9.0.3,<10.0.0",
-  "pytest-cov>=6.0.0,<7.0.0",
+  "pytest-cov>=6.0.0,<8.0.0",
   "ruff>=0.8,<1.0",
 ]
 
